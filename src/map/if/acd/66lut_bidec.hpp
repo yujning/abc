@@ -4,11 +4,36 @@
 #include <vector>
 #include <tuple>
 #include <algorithm>
-#include <iostream>
 #include <cstdint>
-#include <numeric>
 #include <unordered_map>
-#include "node_global.hpp"
+#include <iostream>
+
+// =====================================================
+// Debug infrastructure (aligned with 66lut_dsd style)
+// =====================================================
+inline bool LUT66_BIDEC_DEBUG_PRINT = false;
+inline int  LUT66_BIDEC_DEBUG_INDENT = 0;
+
+#define BIDEC_DBG(msg) \
+    do { if (LUT66_BIDEC_DEBUG_PRINT) { \
+        for (int _i = 0; _i < LUT66_BIDEC_DEBUG_INDENT; ++_i) std::cout << "  "; \
+        std::cout << msg << std::endl; \
+    }} while (0)
+
+#define BIDEC_INDENT_INC() ++LUT66_BIDEC_DEBUG_INDENT
+#define BIDEC_INDENT_DEC() --LUT66_BIDEC_DEBUG_INDENT
+
+inline std::string vec2str(const std::vector<int>& v)
+{
+    std::string s = "{";
+    for (size_t i = 0; i < v.size(); ++i)
+    {
+        s += std::to_string(v[i]);
+        if (i + 1 < v.size()) s += ",";
+    }
+    s += "}";
+    return s;
+}
 
 // =====================================================
 // 工具
@@ -16,89 +41,81 @@
 inline uint64_t pow2(int k) { return 1ull << k; }
 
 // =====================================================
-// 变量重排（编码映射）
-// new_order / old_order: MSB -> LSB（1-based 原变量编号）
-// 说明：输入/输出 mf 的存储顺序均为：下标0对应(11..1)，下标N-1对应(00..0)
+// 结果结构体
+// =====================================================
+struct StrongBiDecResult
+{
+    bool found = false;
+
+    std::vector<int> A;
+    std::vector<int> B;
+    std::vector<int> C;
+
+    std::string MY;
+    std::string MX;
+};
+
+// =====================================================
+// 变量重排
 // =====================================================
 inline std::string reorder_tt_by_var_order(
-    const std::string& mf,
+    const std::string& tt,
     int n,
     const std::vector<int>& new_order_msb2lsb,
     const std::vector<int>& old_order_msb2lsb)
 {
-    const size_t N = mf.size();
-    std::string out(N, '0');
-
-    // var -> position in old_order (MSB position = 0)
-    std::unordered_map<int, int> pos_in_old;
-    pos_in_old.reserve(old_order_msb2lsb.size());
+    std::unordered_map<int,int> pos;
     for (int i = 0; i < n; ++i)
-        pos_in_old[old_order_msb2lsb[i]] = i;
+        pos.emplace(old_order_msb2lsb[i], i);
 
+    std::string out(tt.size(), '0');
 
-    for (size_t bottom_idx = 0; bottom_idx < N; ++bottom_idx)
+    for (size_t idx = 0; idx < tt.size(); ++idx)
     {
-        // bottom_idx: storage order 11..1 -> 00..0
-        // convert to standard index (00..0 -> 11..1)
-        uint64_t new_idx_std = (uint64_t)N - 1 - bottom_idx;
-
-        uint64_t old_idx_std = 0;
-
-        // decode bits according to new_order (MSB->LSB)
+        uint64_t old_idx = 0;
         for (int i = 0; i < n; ++i)
         {
-            int bit = (new_idx_std >> (n - 1 - i)) & 1;
-            int var = new_order_msb2lsb[i]; // 1-based
-
-            auto it = pos_in_old.find(var);
-            if (it == pos_in_old.end()) continue;
-            int pos = it->second;
-
-            old_idx_std |= (uint64_t(bit) << (n - 1 - pos));
+            int bit = (idx >> (n - 1 - i)) & 1;
+            int var = new_order_msb2lsb[i];
+            int p = pos[var];
+            old_idx |= (uint64_t(bit) << (n - 1 - p));
         }
-
-        // convert back to storage order index
-        uint64_t old_idx_bottom = (uint64_t)N - 1 - old_idx_std;
-        out[bottom_idx] = mf[(size_t)old_idx_bottom];
+        out[idx] = tt[old_idx];
     }
-
     return out;
 }
 
 // =====================================================
-// 枚举 (x,y,z)，按 y 从小到大
-// 约束：x+y ≤ 6, y+z+1 ≤ 6, x+y+z = n
+// 枚举 (x,y,z)
 // =====================================================
-inline std::vector<std::tuple<int,int,int>>
-enumerate_xyz(int n)
+inline std::vector<std::tuple<int,int,int>> enumerate_xyz(int n)
 {
     std::vector<std::tuple<int,int,int>> out;
     for (int y = 1; y <= 4; ++y)
-    for (int x = 0; x <= 6; ++x)
-    {
-        int z = n - x - y;
-        if (z < 0) continue;
-        if (x + y > 6) continue;
-        if (y + z + 1 > 6) continue;
-        out.emplace_back(x,y,z);
-    }
+        for (int x = 0; x <= 6; ++x)
+        {
+            int z = n - x - y;
+            if (z < 0) continue;
+            if (x + y > 6) continue;
+            if (y + z + 1 > 6) continue;
+            out.emplace_back(x,y,z);
+        }
     return out;
 }
 
 // =====================================================
-// 枚举变量划分 (A,B,C)，保持 MSB->LSB
+// 枚举变量划分
 // =====================================================
 inline std::vector<
     std::tuple<std::vector<int>,std::vector<int>,std::vector<int>>>
-enumerate_variable_partitions(const std::vector<int>& vars_msb2lsb,
-                              int x, int y, int z)
+enumerate_variable_partitions(
+    const std::vector<int>& vars,
+    int x,int y,int z)
 {
     std::vector<
-        std::tuple<std::vector<int>,std::vector<int>,std::vector<int>>> parts;
+        std::tuple<std::vector<int>,std::vector<int>,std::vector<int>>> out;
 
-     std::vector<int> vars = vars_msb2lsb;
-    int n = (int)vars.size();
-
+    int n = vars.size();
     std::vector<bool> sel_b(n,false);
     std::fill(sel_b.begin(), sel_b.begin()+y, true);
 
@@ -107,123 +124,56 @@ enumerate_variable_partitions(const std::vector<int>& vars_msb2lsb,
         for (int i=0;i<n;i++)
             (sel_b[i]?B:rest).push_back(vars[i]);
 
-        if (x == 0) {
-            parts.emplace_back(std::vector<int>{}, B, rest);
+        if (x==0)
+        {
+            out.emplace_back(std::vector<int>{}, B, rest);
             continue;
         }
 
-        std::vector<bool> sel_a(rest.size(), false);
+        std::vector<bool> sel_a(rest.size(),false);
         std::fill(sel_a.begin(), sel_a.begin()+x, true);
 
         do {
             std::vector<int> A,C;
             for (size_t i=0;i<rest.size();i++)
                 (sel_a[i]?A:C).push_back(rest[i]);
-            parts.emplace_back(A,B,C);
+            out.emplace_back(A,B,C);
         } while (std::prev_permutation(sel_a.begin(), sel_a.end()));
 
     } while (std::prev_permutation(sel_b.begin(), sel_b.end()));
 
-    return parts;
+    return out;
 }
 
 // =====================================================
-// A|B|C → MF index (MSB→LSB)
+// index
 // =====================================================
-inline uint64_t mf_index(uint64_t a, uint64_t b, uint64_t c, int y, int z)
+inline uint64_t mf_index(uint64_t a,uint64_t b,uint64_t c,int y,int z)
 {
-    return (a << (y + z)) | (b << z) | c;
-}
-// =====================================================
-// 打印重排后的真值表（存储顺序：11...1 → 00...0）
-// =====================================================
-inline void print_reordered_tt(
-    const std::string& mf,
-    int n,
-    const std::vector<int>& order_msb2lsb)
-{
-    std::cout << "🧮 Reordered TT (order: ";
-    for (size_t i = 0; i < order_msb2lsb.size(); ++i)
-    {
-        if (i) std::cout << ",";
-        std::cout << order_msb2lsb[i];
-    }
-    //std::cout << " — 11...1→00...0)\n";
-
-    std::string seq;
-    seq.reserve(mf.size());
-
-    // for (size_t bottom_idx = 0; bottom_idx < mf.size(); ++bottom_idx)
-    // {
-    //     uint64_t top_idx = (uint64_t)mf.size() - 1 - bottom_idx;
-
-    //     for (int i = 0; i < n; ++i)
-    //     {
-    //         int bit = (top_idx >> (n - 1 - i)) & 1;
-    //         int var = order_msb2lsb[i];
-    //         std::cout << "  v" << var << "=" << bit;
-    //     }
-
-    //     std::cout << " -> " << mf[bottom_idx] << "\n";
-    //     seq.push_back(mf[bottom_idx]);
-    // }
-
-    std::cout << "🧮 TT sequence: " << seq << "\n";
+    return (a<<(y+z)) | (b<<z) | c;
 }
 
 // =====================================================
-// 打印 Mr / MZ
-// =====================================================
-inline void print_MZ_delta(int x, int y)
-{
-    uint64_t Ix = pow2(x);
-    uint64_t t  = pow2(y);
-
-    std::cout << "🟩 MZ = I_{2^" << x << "} ⊗ Mr_{2^" << y << "}\n";
-    std::cout << "🟩 Mr = δ_" << (t*t) << "[ ";
-    for (uint64_t i=0;i<t;i++)
-        std::cout << (i*t+i+1) << " ";
-    std::cout << "]\n";
-
-    std::cout << "🟩 MZ = δ_" << (Ix*t*t) << "[ ";
-    for (uint64_t a=0;a<Ix;a++)
-        for (uint64_t i=0;i<t;i++)
-            std::cout << (a*t*t + i*t + i + 1) << " ";
-    std::cout << "]\n";
-}
-
-// =====================================================
-// Step 1：MF′ + MZ → MXY
+// Step 1: MF' → MXY
 // =====================================================
 inline std::string compute_MXYX_from_MF(
-    const std::string& MF,
-    int x,int y,int z)
+    const std::string& MF,int x,int y,int z)
 {
-    uint64_t HN = pow2(x);
-    uint64_t MN = pow2(y);
-    uint64_t LN = pow2(z);
+    uint64_t H=pow2(x), M=pow2(y), L=pow2(z);
+    std::string MXY(pow2(x+2*y+z),'x');
 
-    uint64_t MXY_cols = pow2(x+2*y+z);
-    std::string MXY(MXY_cols,'x');
-
-    for (uint64_t a=0;a<HN;a++)
-    for (uint64_t b=0;b<MN;b++)
-    {
-        uint64_t r = b*MN + b;
-        uint64_t block = a*MN*MN + r;
-
-        for (uint64_t c=0;c<LN;c++)
+    for (uint64_t a=0;a<H;a++)
+        for (uint64_t b=0;b<M;b++)
         {
-            uint64_t mf_col  = mf_index(a,b,c,y,z);
-            uint64_t mxy_col = block*LN + c;
-            MXY[mxy_col] = MF[mf_col];
+            uint64_t blk=a*M*M+b*M+b;
+            for (uint64_t c=0;c<L;c++)
+                MXY[blk*L+c]=MF[mf_index(a,b,c,y,z)];
         }
-    }
     return MXY;
 }
 
 // =====================================================
-// Step 2：求 MX / MY
+// Step 2: solve MX / MY
 // =====================================================
 inline bool solve_MX_MY_from_MXY(
     const std::string& MXY,
@@ -231,170 +181,125 @@ inline bool solve_MX_MY_from_MXY(
     std::string& MX,
     std::string& MY)
 {
+    BIDEC_DBG("[solve_MX_MY]");
+    BIDEC_INDENT_INC();
+
     uint64_t MYN = pow2(x+y);
-    uint64_t block_size = pow2(y+z);
+    uint64_t BS  = pow2(y+z);
 
     std::vector<std::string> blocks;
-    MY.resize(MYN);
+    MY.assign(MYN,'0');
 
     for (uint64_t i=0;i<MYN;i++)
     {
-        std::string blk = MXY.substr(i*block_size, block_size);
+        std::string blk=MXY.substr(i*BS,BS);
+        BIDEC_DBG("Block " << i << " = " << blk);
 
         bool hit=false;
         for (size_t k=0;k<blocks.size();k++)
         {
             bool ok=true;
-            for (uint64_t j=0;j<block_size;j++)
-                if (blk[j]!='x' && blocks[k][j]!='x'
-                    && blk[j]!=blocks[k][j]) { ok=false; break; }
-
+            for (uint64_t j=0;j<BS;j++)
+            {
+                char a=blk[j], b=blocks[k][j];
+                if (a!='x' && b!='x' && a!=b)
+                {
+                    ok=false;
+                    BIDEC_DBG("  conflict at bit " << j);
+                    break;
+                }
+            }
             if (ok)
             {
-                for (uint64_t j=0;j<block_size;j++)
-                    if (blocks[k][j]=='x') blocks[k][j]=blk[j];
+                for (uint64_t j=0;j<BS;j++)
+                    if (blocks[k][j]=='x')
+                        blocks[k][j]=blk[j];
                 MY[i]=(k==0?'1':'0');
-                hit=true; break;
+                hit=true;
+                break;
             }
         }
 
         if (!hit)
         {
-            if (blocks.size()==2) return false;
+            if (blocks.size()==2)
+            {
+                BIDEC_DBG("  FAIL: >2 classes");
+                BIDEC_INDENT_DEC();
+                return false;
+            }
             blocks.push_back(blk);
             MY[i]=(blocks.size()==1?'1':'0');
+            BIDEC_DBG("  new class");
         }
     }
 
-    if (blocks.size()!=2) return false;
+    if (blocks.size()!=2)
+    {
+        BIDEC_DBG("FAIL: class count !=2");
+        BIDEC_INDENT_DEC();
+        return false;
+    }
 
     MX.clear();
     for (auto& b:blocks)
         for (char c:b)
             MX.push_back(c=='x'?'0':c);
 
+    BIDEC_DBG("MY = " << MY);
+    BIDEC_DBG("MX = " << MX);
+    BIDEC_INDENT_DEC();
     return true;
 }
 
 // =====================================================
-// children 构造（含占位符）
+// ★ 主入口
 // =====================================================
-inline std::vector<int> make_children_with_placeholder(
-    const std::vector<int>& order_msb2lsb,
-    int placeholder_var_id,
-    int placeholder_node_id)
+inline StrongBiDecResult
+run_strong_bi_dec(const std::string& tt,
+                  const std::vector<int>& order)
 {
-    std::vector<int> ch;
-    ch.reserve(order_msb2lsb.size());
+    StrongBiDecResult res;
+    int n=order.size();
+    if ((size_t(1)<<n)!=tt.size()) return res;
 
-    for (int var_id : order_msb2lsb)
+    BIDEC_DBG("[BiDec] start");
+    BIDEC_DBG("order = " << vec2str(order));
+
+    for (auto [x,y,z]:enumerate_xyz(n))
     {
-        if (var_id == placeholder_var_id) continue;
-        new_in_node(var_id);
-        if (std::find(FINAL_VAR_ORDER.begin(),
-                      FINAL_VAR_ORDER.end(),
-                      var_id) == FINAL_VAR_ORDER.end())
-            FINAL_VAR_ORDER.push_back(var_id);
-    }
+        BIDEC_DBG("Try (x,y,z)=("<<x<<","<<y<<","<<z<<")");
+        BIDEC_INDENT_INC();
 
-    for (auto it = order_msb2lsb.rbegin();
-         it != order_msb2lsb.rend(); ++it)
-    {
-        int var_id = *it;
-        if (var_id == placeholder_var_id)
-            ch.push_back(placeholder_node_id);
-        else
-            ch.push_back(new_in_node(var_id));
-    }
-
-    return ch;
-}
-
-// =====================================================
-// ★ 入口函数（最终）
-// =====================================================
-inline bool run_strong_bi_dec_and_build_dag(const TT& root_tt)
-{
-    int n = (int)root_tt.order.size();
-
-    int max_var_id = 0;
-    for (int v : root_tt.order)
-    max_var_id = std::max(max_var_id, v);
-
-    if ((size_t(1) << n) != root_tt.f01.size()) return false;
-
-    // 原始 TT 变量顺序（MSB->LSB）
-    std::vector<int> original_order = root_tt.order;
-
-    RESET_NODE_GLOBAL();
-
-    for (auto [x,y,z] : enumerate_xyz(n))
-    {
-        auto parts = enumerate_variable_partitions(original_order, x, y, z);
-        for (const auto& [A,B,C] : parts)
+        auto parts=enumerate_variable_partitions(order,x,y,z);
+        for (auto& p:parts)
         {
-            std::vector<int> new_order;
-            new_order.insert(new_order.end(), A.begin(), A.end());
-            new_order.insert(new_order.end(), B.begin(), B.end());
-            new_order.insert(new_order.end(), C.begin(), C.end());
+            auto& A=std::get<0>(p);
+            auto& B=std::get<1>(p);
+            auto& C=std::get<2>(p);
 
-            std::string MFp =
-             reorder_tt_by_var_order(root_tt.f01, n, new_order, original_order);
+            BIDEC_DBG("A="<<vec2str(A)<<" B="<<vec2str(B)<<" C="<<vec2str(C));
 
-            print_reordered_tt(MFp, n, new_order);
+            std::vector<int> new_order=A;
+            new_order.insert(new_order.end(),B.begin(),B.end());
+            new_order.insert(new_order.end(),C.begin(),C.end());
 
-            std::cout<<"📐 Try "<<x<<"+"<<y<<"+"<<z
-                     <<"  A={ "; for(int v:A) std::cout<<v<<" ";
-            std::cout<<"} B={ "; for(int v:B) std::cout<<v<<" ";
-            std::cout<<"} C={ "; for(int v:C) std::cout<<v<<" ";
-            std::cout<<"}\n";
-
-            print_MZ_delta(x,y);
-
-            std::string MXY =
-                compute_MXYX_from_MF(MFp,x,y,z);
-            std::cout<<"🟨 MXY = "<<MXY<<"\n";
+            std::string MFp=reorder_tt_by_var_order(tt,n,new_order,order);
+            std::string MXY=compute_MXYX_from_MF(MFp,x,y,z);
 
             std::string MX,MY;
             if (!solve_MX_MY_from_MXY(MXY,x,y,z,MX,MY))
-            {
-                std::cout<<"❌ MX/MY unsat\n";
                 continue;
-            }
 
-            std::cout<<"✅ Strong Bi-Decomposition found\n";
-            std::cout<<"🟦 MY = "<<MY<<"\n";
-            std::cout<<"🟥 MX = "<<MX<<"\n";
+            res.found=true;
+            res.A=A; res.B=B; res.C=C;
+            res.MX=MX; res.MY=MY;
 
-            // ===== 构造 DAG =====
-            ORIGINAL_VAR_COUNT = max_var_id;
-
-
-            TT tt_my;
-            tt_my.f01 = MY;
-            tt_my.order.insert(tt_my.order.end(), A.begin(), A.end());
-            tt_my.order.insert(tt_my.order.end(), B.begin(), B.end());
-
-            auto children_my = make_children_from_order(tt_my);
-            std::reverse(children_my.begin(), children_my.end());
-            int my_node = new_node(MY, children_my);
-
-            int placeholder_var_id = max_var_id + 1;
-
-            std::vector<int> order_mx;
-            order_mx.push_back(placeholder_var_id);
-            order_mx.insert(order_mx.end(), B.begin(), B.end());
-            order_mx.insert(order_mx.end(), C.begin(), C.end());
-
-            auto children_mx = make_children_with_placeholder(
-                order_mx, placeholder_var_id, my_node);
-            std::reverse(children_mx.begin(), children_mx.end());
-
-            new_node(MX, children_mx);
-            return true;
+            BIDEC_DBG("[BiDec] SUCCESS");
+            BIDEC_INDENT_DEC();
+            return res;
         }
+        BIDEC_INDENT_DEC();
     }
-
-    std::cout<<"❌ No valid strong bi-decomposition\n";
-    return false;
+    return res;
 }

@@ -6,17 +6,12 @@
 #include <algorithm>
 #include <cstdint>
 #include <iostream>
-#include <unordered_set>
-#include "node_global.hpp"
 
 // =====================================================
 // Debug switch
 // =====================================================
 inline bool LUT66_DSD_DEBUG_PRINT = false;
 
-// =====================================================
-// Pretty print: TT + order (must be paired)
-// =====================================================
 inline void print_tt_with_order_66(
     const std::string& title,
     const std::string& tt,
@@ -120,9 +115,6 @@ inline std::string extract_block_for_mx_66(
     return sub;
 }
 
-// =====================================================
-// Helper: print current candidate split info
-// =====================================================
 inline void print_candidate_info_66(
     int depth,
     int k,
@@ -143,7 +135,7 @@ inline void print_candidate_info_66(
 
 // =====================================================
 // ★ 66-LUT Strong DSD (subset enumeration, single split)
-// Constraint: |My| <= 6, |Mx| <= 5, and same split rule as strong_dsd.hpp (exactly 2 blocks)
+// Constraint: |My| <= 6, |Mx| <= 5, and EXACTLY 2 distinct blocks
 // Search: iterate k within feasible range; enumerate Mx subset by var_id ascending.
 // =====================================================
 inline Lut66DsdResult run_66lut_dsd_by_mx_subset(
@@ -157,7 +149,6 @@ inline Lut66DsdResult run_66lut_dsd_by_mx_subset(
     if (n <= 1) return out;
     if ((size_t(1) << n) != mf.size()) return out;
 
-    // (var_id, pos) sorted by var_id (ascending) for stable enumeration
     struct VarPos { int var; int pos; };
     std::vector<VarPos> vp;
     vp.reserve(n);
@@ -166,9 +157,6 @@ inline Lut66DsdResult run_66lut_dsd_by_mx_subset(
         return x.var < y.var;
     });
 
-    // 66 constraints:
-    // m = n-k <= 6  => k >= n-6
-    // k <= 5
     int k_min = std::max(1, n - 6);
     int k_max = std::min(5, n - 1);
     if (k_min > k_max) return out;
@@ -180,12 +168,10 @@ inline Lut66DsdResult run_66lut_dsd_by_mx_subset(
 
         while (true)
         {
-            // mx positions from comb
             std::vector<int> mx_pos;
             mx_pos.reserve(k);
             for (int idx : comb) mx_pos.push_back(vp[idx].pos);
 
-            // my positions = rest
             std::vector<int> my_pos;
             my_pos.reserve(n - k);
             {
@@ -194,11 +180,9 @@ inline Lut66DsdResult run_66lut_dsd_by_mx_subset(
                 for (int p = 0; p < n; ++p) if (!is_mx[p]) my_pos.push_back(p);
             }
 
-            // sort by position (MSB->LSB)
             std::sort(mx_pos.begin(), mx_pos.end());
             std::sort(my_pos.begin(), my_pos.end());
 
-            // build vars list in MSB->LSB by position
             std::vector<int> mx_vars_msb2lsb;
             std::vector<int> my_vars_msb2lsb;
             mx_vars_msb2lsb.reserve(mx_pos.size());
@@ -206,7 +190,7 @@ inline Lut66DsdResult run_66lut_dsd_by_mx_subset(
             for (int p : mx_pos) mx_vars_msb2lsb.push_back(order[p]);
             for (int p : my_pos) my_vars_msb2lsb.push_back(order[p]);
 
-            int m = n - k; // |My|
+            int m = n - k;
             if (m > 6 || k > 5) {
                 if (!next_combination_66(comb, (int)vp.size())) break;
                 continue;
@@ -214,18 +198,16 @@ inline Lut66DsdResult run_66lut_dsd_by_mx_subset(
 
             print_candidate_info_66(depth_for_print, k, m, mx_vars_msb2lsb, my_vars_msb2lsb);
 
-            uint64_t my_count = 1ull << m;
-            uint64_t L = 1ull << k;
+            const uint64_t my_cnt = 1ull << m;
+            const uint64_t L = 1ull << k;
 
             if (LUT66_DSD_DEBUG_PRINT)
             {
                 std::string reordered;
-                reordered.reserve((size_t)my_count * (size_t)L);
+                reordered.reserve((size_t)my_cnt * (size_t)L);
 
-                for (uint64_t y = 0; y < my_count; ++y) {
-                    std::string block = extract_block_for_mx_66(mf, n, mx_pos, my_pos, y);
-                    reordered += block;
-                }
+                for (uint64_t y = 0; y < my_cnt; ++y)
+                    reordered += extract_block_for_mx_66(mf, n, mx_pos, my_pos, y);
 
                 std::vector<int> reordered_order;
                 reordered_order.reserve(n);
@@ -235,25 +217,25 @@ inline Lut66DsdResult run_66lut_dsd_by_mx_subset(
                 print_tt_with_order_66("候选 split 的重排 TT (My|Mx)", reordered, reordered_order, depth_for_print);
             }
 
-            std::unordered_map<std::string, int> block_index;
+            std::unordered_map<std::string, int> block_map;
             std::vector<std::string> blocks;
             blocks.reserve(2);
 
             std::string My;
-            My.reserve((size_t)my_count);
+            My.reserve((size_t)my_cnt);
 
             bool too_many = false;
 
-            for (uint64_t y = 0; y < my_count; ++y)
+            for (uint64_t y = 0; y < my_cnt; ++y)
             {
                 std::string block = extract_block_for_mx_66(mf, n, mx_pos, my_pos, y);
 
-                auto it = block_index.find(block);
-                if (it == block_index.end())
+                auto it = block_map.find(block);
+                if (it == block_map.end())
                 {
                     if (blocks.size() >= 2) { too_many = true; break; }
                     int id = (int)blocks.size();
-                    block_index.emplace(block, id);
+                    block_map.emplace(block, id);
                     blocks.push_back(block);
                     My.push_back(id == 0 ? '1' : '0');
                 }
@@ -278,13 +260,10 @@ inline Lut66DsdResult run_66lut_dsd_by_mx_subset(
                 out.block0 = blocks[0];
                 out.block1 = blocks[1];
 
-                // reordered_tt (My|Mx)
                 std::string reordered;
-                reordered.reserve((size_t)my_count * (size_t)L);
-                for (uint64_t y = 0; y < my_count; ++y) {
-                    std::string block = extract_block_for_mx_66(mf, n, mx_pos, my_pos, y);
-                    reordered += block;
-                }
+                reordered.reserve((size_t)my_cnt * (size_t)L);
+                for (uint64_t y = 0; y < my_cnt; ++y)
+                    reordered += extract_block_for_mx_66(mf, n, mx_pos, my_pos, y);
                 out.reordered_tt = reordered;
 
                 if (LUT66_DSD_DEBUG_PRINT)
@@ -304,119 +283,4 @@ inline Lut66DsdResult run_66lut_dsd_by_mx_subset(
     }
 
     return out;
-}
-
-// =====================================================
-// children (MSB->LSB) + placeholder support (same spirit as strong_dsd.hpp)
-// =====================================================
-inline std::vector<int> make_children_from_order_with_placeholder_66(
-    const std::vector<int>& order_msb2lsb,
-    const std::unordered_map<int, int>* placeholder_nodes)
-{
-    std::vector<int> children;
-    children.reserve(order_msb2lsb.size());
-
-    // 关键：按 MSB -> LSB 直接放
-    for (int var_id : order_msb2lsb)
-    {
-        if (placeholder_nodes) {
-            auto it = placeholder_nodes->find(var_id);
-            if (it != placeholder_nodes->end()) {
-                children.push_back(it->second);
-                continue;
-            }
-        }
-
-          auto global_it = PLACEHOLDER_BINDINGS.find(var_id);
-        if (global_it != PLACEHOLDER_BINDINGS.end())
-        {
-            children.push_back(global_it->second);
-            continue;
-        }
-        children.push_back(new_in_node(var_id));
-    }
-
-    return children;
-}
-
-// =====================================================
-// ★ 入口：只做一次 66-LUT DSD，然后按 “MY -> MX(含MY占位)” 方式建 DAG
-// 原变量默认顺序：n,n-1,...,1 (MSB->LSB)
-// =====================================================
-inline bool run_66lut_dsd_and_build_dag(const TT& root_tt)
-{
-    int n = (int)root_tt.order.size();
-    if ((size_t(1) << n) != root_tt.f01.size()) return false;
-
-    RESET_NODE_GLOBAL();
-    int max_var_id = root_tt.order.empty() ? 0
-                                           : *std::max_element(root_tt.order.begin(),
-                                                               root_tt.order.end());
-    ORIGINAL_VAR_COUNT = max_var_id;
-    auto res = run_66lut_dsd_by_mx_subset(root_tt.f01, root_tt.order,
-                                          /*depth_for_print=*/0);
-    if (!res.found) {
-        if (LUT66_DSD_DEBUG_PRINT) std::cout << "❌ No valid 66-LUT Strong DSD split\n";
-        return false;
-    }
-
-    if (LUT66_DSD_DEBUG_PRINT)
-    {
-        std::cout << "✅ 66-LUT DSD FOUND\n";
-        std::cout << "   |My|=" << res.my_vars_msb2lsb.size() << "  |Mx|=" << res.mx_vars_msb2lsb.size() << "\n";
-        std::cout << "   My vars (MSB->LSB): { ";
-        for (int v : res.my_vars_msb2lsb) std::cout << v << " ";
-        std::cout << "}\n";
-        std::cout << "   Mx vars (MSB->LSB): { ";
-        for (int v : res.mx_vars_msb2lsb) std::cout << v << " ";
-        std::cout << "}\n";
-        std::cout << "   MY = " << res.My << "\n";
-        std::cout << "   MX = " << res.Mx << "\n";
-    }
-
-    // ----- build MY node (<=6 vars) -----
-    {
-        std::vector<int> order_my = res.my_vars_msb2lsb; // MSB->LSB
-        auto children_my = make_children_from_order_with_placeholder_66(order_my, nullptr);
-        int my_node = new_node(res.My, children_my);
-
- // ----- build MX node (MY placeholder + <=5 vars) -----
-        int k = (int)res.mx_vars_msb2lsb.size();
-        int my_local_id = allocate_placeholder_var_id(nullptr);
-
-
-        // 先把 MY 的变量做成一个集合，便于过滤
-        std::unordered_set<int> my_var_set(
-            res.my_vars_msb2lsb.begin(),
-            res.my_vars_msb2lsb.end()
-        );
-
-            // MX 的输入顺序：MY 在 MSB，其后是“非 MY 的原变量”；同时去重，防止占位符重复出现
-            std::vector<int> order_mx;
-            order_mx.reserve(1 + res.mx_vars_msb2lsb.size());
-
-            std::unordered_set<int> seen_vars;
-            order_mx.push_back(my_local_id);
-            seen_vars.insert(my_local_id);
-
-            for (int v : res.mx_vars_msb2lsb)
-            {
-                // ★ 关键：排除属于 MY 的变量；如果 MX 列表里出现重复，也要跳过
-                if (my_var_set.count(v) == 0 && seen_vars.insert(v).second)
-                    order_mx.push_back(v);
-            }
-        
-
-        std::unordered_map<int, int> placeholder;
-        placeholder[my_local_id] = my_node;
-          register_placeholder_bindings(placeholder);
-
-        auto children_mx =
-            make_children_from_order_with_placeholder_66(order_mx, &placeholder);
-
-        new_node(res.Mx, children_mx);
-
-    }
-
-    return true;
 }

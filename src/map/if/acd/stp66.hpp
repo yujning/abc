@@ -2,9 +2,11 @@
 
 #include "misc/util/abc_global.h"
 
-#include "66lut_dsd.hpp"
-#include "node_global.hpp"
-#include "66lut_bidec.hpp"
+#include "node_global.hpp"   // 提供 TT
+#include "66lut_dsd.hpp"     // 66-LUT DSD
+#include "66lut_bidec.hpp"   // ★ 现在可以安全 include 了
+
+#include <iostream>
 
 ABC_NAMESPACE_CXX_HEADER_START
 
@@ -13,81 +15,58 @@ namespace acd
 
 inline bool stp66_find_mx_my( const TT& root_tt, Lut66DsdResult& result )
 {
+    LUT66_DSD_DEBUG_PRINT   = true;
+    LUT66_BIDEC_DEBUG_PRINT = true;
 
-  LUT66_DSD_DEBUG_PRINT = true;
+    std::cout << "[STP66] Try 66-LUT DSD\n";
 
-  std::cout << "[STP66] Try 66-LUT DSD first" << std::endl;
-  // 优先尝试 66-LUT DSD 算法
-  result = run_66lut_dsd_by_mx_subset( root_tt.f01, root_tt.order, /*depth_for_print=*/0 );
- if ( result.found )
-  {
-    std::cout << "[STP66] 66-LUT DSD succeeded" << std::endl;
-    return true;
-  }
+    result = run_66lut_dsd_by_mx_subset(
+        root_tt.f01, root_tt.order, 0 );
 
-  std::cout << "[STP66] 66-LUT DSD failed, fallback to strong bi-decomposition" << std::endl;
-  // 若 DSD 失败，尝试强双分解算法
-  const int n = static_cast<int>( root_tt.order.size() );
-  if ( ( size_t( 1 ) << n ) != root_tt.f01.size() )
-    return false;
+    bool meaningful_dsd =
+        result.found &&
+        !result.mx_vars_msb2lsb.empty() &&
+        !result.my_vars_msb2lsb.empty() &&
+        result.mx_vars_msb2lsb.size() < root_tt.order.size() &&
+        result.my_vars_msb2lsb.size() < root_tt.order.size();
 
-  const std::vector<int> original_order = root_tt.order;
-
-  for ( auto [x, y, z] : enumerate_xyz( n ) )
-  {
-    auto parts = enumerate_variable_partitions( original_order, x, y, z );
-    for ( const auto& [A, B, C] : parts )
+    if ( meaningful_dsd )
     {
-      std::vector<int> new_order;
-      new_order.insert( new_order.end(), A.begin(), A.end() );
-      new_order.insert( new_order.end(), B.begin(), B.end() );
-      new_order.insert( new_order.end(), C.begin(), C.end() );
-
-      std::string MFp = reorder_tt_by_var_order( root_tt.f01, n, new_order, original_order );
-      std::string MXY = compute_MXYX_from_MF( MFp, x, y, z );
-
-      std::string MX, MY;
-      if ( !solve_MX_MY_from_MXY( MXY, x, y, z, MX, MY ) )
-        continue;
-
-      result.found = true;
-      result.Mx = MX;
-      result.My = MY;
-      result.block0.clear();
-      result.block1.clear();
-      result.reordered_tt.clear();
-
-      result.mx_vars_msb2lsb.clear();
-      result.mx_vars_msb2lsb.insert( result.mx_vars_msb2lsb.end(), B.begin(), B.end() );
-      result.mx_vars_msb2lsb.insert( result.mx_vars_msb2lsb.end(), C.begin(), C.end() );
-
-      result.my_vars_msb2lsb.clear();
-      result.my_vars_msb2lsb.insert( result.my_vars_msb2lsb.end(), A.begin(), A.end() );
-      result.my_vars_msb2lsb.insert( result.my_vars_msb2lsb.end(), B.begin(), B.end() );
-
-      result.L = size_t( 1 ) << ( y + z );
-
-      auto fill_pos = [&]( const std::vector<int>& vars, std::vector<int>& pos_out ) {
-        pos_out.clear();
-        for ( int var : vars )
-        {
-          auto it = std::find( original_order.begin(), original_order.end(), var );
-          if ( it != original_order.end() )
-            pos_out.push_back( static_cast<int>( std::distance( original_order.begin(), it ) ) );
-        }
-      };
-
-      fill_pos( result.mx_vars_msb2lsb, result.mx_pos );
-      fill_pos( result.my_vars_msb2lsb, result.my_pos );
-
-      std::cout << "[STP66] Strong bi-decomposition succeeded" << std::endl;
-      return true;
+        std::cout << "[STP66] meaningful 66-LUT DSD succeeded\n";
+        return true;
     }
-  }
 
-  std::cout << "[STP66] Strong bi-decomposition failed" << std::endl;
-  return false;
+    std::cout << "[STP66] DSD trivial or failed, try strong bi-dec\n";
+
+    StrongBiDecResult bi =
+        run_strong_bi_dec(root_tt.f01, root_tt.order);
+
+    if ( !bi.found )
+    {
+        std::cout << "[STP66] strong bi-dec failed\n";
+        return false;
+    }
+
+    // map bi-dec → unified result
+    result = Lut66DsdResult{};
+    result.found = true;
+    result.Mx = bi.MX;
+    result.My = bi.MY;
+
+    result.my_vars_msb2lsb = bi.A;
+    result.my_vars_msb2lsb.insert(
+        result.my_vars_msb2lsb.end(),
+        bi.B.begin(), bi.B.end());
+
+    result.mx_vars_msb2lsb = bi.B;
+    result.mx_vars_msb2lsb.insert(
+        result.mx_vars_msb2lsb.end(),
+        bi.C.begin(), bi.C.end());
+
+    std::cout << "[STP66] strong bi-dec succeeded\n";
+    return true;
 }
+
 } // namespace acd
 
 ABC_NAMESPACE_CXX_HEADER_END
