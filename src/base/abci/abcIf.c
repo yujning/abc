@@ -463,8 +463,10 @@ void Abc_DecRecordToHop( Abc_Ntk_t * pNtkNew, If_Man_t * pIfMan, If_Cut_t * pCut
     int val;
     if ( pIfMan->pPars->fUserLutDec )//if -Z
     {
-        printf("Using 1 decomposition\n");
-        val = acd_decompose( pTruth, pCutBest->nLeaves, pIfMan->pPars->nLutDecSize, &(delayProfile), decompArray );
+        //printf("Using 1 decomposition\n");
+        //val = acd_decompose( pTruth, pCutBest->nLeaves, pIfMan->pPars->nLutDecSize, &(delayProfile), decompArray );
+        printf("Using STP decomposition\n");
+        val = stpxx_decompose( pTruth, pIfMan->pPars->nLutDecSize, pCutBest->nLeaves, decompArray );
     }
     else if ( pIfMan->pPars->fUserLut2D )//if -U
     {
@@ -475,8 +477,7 @@ void Abc_DecRecordToHop( Abc_Ntk_t * pNtkNew, If_Man_t * pIfMan, If_Cut_t * pCut
     {
         printf("Using 3 decomposition\n");
         val = acdXX_decompose( pTruth, pIfMan->pPars->nLutDecSize, pCutBest->nLeaves, decompArray );
-      //printf("Using STP decomposition\n");
-       //val = stpxx_decompose( pTruth, pIfMan->pPars->nLutDecSize, pCutBest->nLeaves, decompArray );
+
     }
     assert( val == 0 );
 
