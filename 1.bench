@@ -1,0 +1,11 @@
+# Benchmark "ex" written by ABC on Sun Jan  4 22:22:41 2026
+INPUT(a)
+INPUT(b)
+INPUT(c)
+INPUT(d)
+INPUT(e)
+INPUT(f)
+INPUT(g)
+INPUT(h)
+OUTPUT(F0)
+F0          = LUT 0xffffffffffffffffff5500000000000000000000000000000000000000000000 ( a, b, c, d, e, f, g, h )
