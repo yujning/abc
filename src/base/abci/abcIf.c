@@ -461,17 +461,22 @@ void Abc_DecRecordToHop( Abc_Ntk_t * pNtkNew, If_Man_t * pIfMan, If_Cut_t * pCut
     // perform LUT-decomposition and return the LUT-structure
     unsigned char decompArray[92];
     int val;
-    if ( pIfMan->pPars->fUserLutDec )
+    if ( pIfMan->pPars->fUserLutDec )//if -Z
     {
+        printf("Using 1 decomposition\n");
         val = acd_decompose( pTruth, pCutBest->nLeaves, pIfMan->pPars->nLutDecSize, &(delayProfile), decompArray );
     }
-    else if ( pIfMan->pPars->fUserLut2D )
+    else if ( pIfMan->pPars->fUserLut2D )//if -U
     {
+        printf("Using 2 decomposition\n");
         val = acd2_decompose( pTruth, pCutBest->nLeaves, pIfMan->pPars->nLutDecSize, &(delayProfile), decompArray );
     }
     else
     {
+        printf("Using 3 decomposition\n");
         val = acdXX_decompose( pTruth, pIfMan->pPars->nLutDecSize, pCutBest->nLeaves, decompArray );
+      //printf("Using STP decomposition\n");
+       //val = stpxx_decompose( pTruth, pIfMan->pPars->nLutDecSize, pCutBest->nLeaves, decompArray );
     }
     assert( val == 0 );
 

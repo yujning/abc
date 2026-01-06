@@ -7,7 +7,11 @@
 #include <vector>
 #include <unordered_map>
 // 前向声明，避免循环依赖
-struct DSDNode;
+struct DSDNode {
+    std::string func;          // "in", "0", "1", 或 STP 核心函数串
+    std::vector<int> child;
+};
+
 struct TT {
     std::string f01;
     std::vector<int> order;

@@ -307,7 +307,9 @@ int If_CluCheckXXExt( void * pMan, word * pTruth, int nVars, int nLutLeaf, int n
     int i;
 
     if ( acdXX_decompose( pTruth, nLutRoot, nVars, result ) )
+    //if ( stpxx_decompose( pTruth, nLutRoot, nVars, result ) )
     {
+        printf( "Decomposition failed.\n" );
         /* decomposition failed */
         return 0;
     }
