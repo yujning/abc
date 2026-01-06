@@ -9,7 +9,7 @@
 #include <iostream>
 
 // =====================================================
-// Debug infrastructure (aligned with 66lut_dsd style)
+// Debug
 // =====================================================
 inline bool LUT66_BIDEC_DEBUG_PRINT = false;
 inline int  LUT66_BIDEC_DEBUG_INDENT = 0;
@@ -23,62 +23,43 @@ inline int  LUT66_BIDEC_DEBUG_INDENT = 0;
 #define BIDEC_INDENT_INC() ++LUT66_BIDEC_DEBUG_INDENT
 #define BIDEC_INDENT_DEC() --LUT66_BIDEC_DEBUG_INDENT
 
-inline std::string vec2str(const std::vector<int>& v)
-{
-    std::string s = "{";
-    for (size_t i = 0; i < v.size(); ++i)
-    {
-        s += std::to_string(v[i]);
-        if (i + 1 < v.size()) s += ",";
-    }
-    s += "}";
-    return s;
-}
+inline uint64_t bidec_pow2(int k) { return 1ull << k; }
 
 // =====================================================
-// 工具
-// =====================================================
-inline uint64_t pow2(int k) { return 1ull << k; }
-
-// =====================================================
-// 结果结构体
+// Result
 // =====================================================
 struct StrongBiDecResult
 {
     bool found = false;
-
     std::vector<int> A;
     std::vector<int> B;
     std::vector<int> C;
-
     std::string MY;
     std::string MX;
 };
 
 // =====================================================
-// 变量重排
+// reorder tt by variable order (MSB->LSB)
 // =====================================================
 inline std::string reorder_tt_by_var_order(
     const std::string& tt,
     int n,
-    const std::vector<int>& new_order_msb2lsb,
-    const std::vector<int>& old_order_msb2lsb)
+    const std::vector<int>& new_order,
+    const std::vector<int>& old_order)
 {
+    std::string out(tt.size(), '0');
+
     std::unordered_map<int,int> pos;
     for (int i = 0; i < n; ++i)
-        pos.emplace(old_order_msb2lsb[i], i);
-
-    std::string out(tt.size(), '0');
+        pos[old_order[i]] = i;
 
     for (size_t idx = 0; idx < tt.size(); ++idx)
     {
         uint64_t old_idx = 0;
         for (int i = 0; i < n; ++i)
         {
-            int bit = (idx >> (n - 1 - i)) & 1;
-            int var = new_order_msb2lsb[i];
-            int p = pos[var];
-            old_idx |= (uint64_t(bit) << (n - 1 - p));
+            int bit = (idx >> (n-1-i)) & 1;
+            old_idx |= uint64_t(bit) << (n-1-pos[new_order[i]]);
         }
         out[idx] = tt[old_idx];
     }
@@ -86,7 +67,94 @@ inline std::string reorder_tt_by_var_order(
 }
 
 // =====================================================
-// 枚举 (x,y,z)
+// index (A|B|C) → MF
+// =====================================================
+inline uint64_t mf_index(uint64_t a, uint64_t b, uint64_t c, int y, int z)
+{
+    return (a << (y + z)) | (b << z) | c;
+}
+
+// =====================================================
+// Step 1: MF → MXY
+// =====================================================
+inline std::string compute_MXYX_from_MF(
+    const std::string& MF,
+    int x, int y, int z)
+{
+    uint64_t HN = bidec_pow2(x);
+    uint64_t MN = bidec_pow2(y);
+    uint64_t LN = bidec_pow2(z);
+
+    std::string MXY(bidec_pow2(x + 2*y + z), 'x');
+
+    for (uint64_t a = 0; a < HN; ++a)
+        for (uint64_t b = 0; b < MN; ++b)
+            for (uint64_t c = 0; c < LN; ++c)
+            {
+                uint64_t idx = (a*MN*MN + b*MN + b)*LN + c;
+                MXY[idx] = MF[mf_index(a,b,c,y,z)];
+            }
+
+    return MXY;
+}
+
+// =====================================================
+// Step 2: solve MX / MY from MXY
+// =====================================================
+inline bool solve_MX_MY_from_MXY(
+    const std::string& MXY,
+    int x, int y, int z,
+    std::string& MX,
+    std::string& MY)
+{
+    uint64_t blocks = bidec_pow2(x + y);
+    uint64_t blk_sz = bidec_pow2(y + z);
+
+    std::vector<std::string> classes;
+    MY.assign(blocks, '0');
+
+    for (uint64_t i = 0; i < blocks; ++i)
+    {
+        std::string blk = MXY.substr(i * blk_sz, blk_sz);
+
+        bool hit = false;
+        for (size_t k = 0; k < classes.size(); ++k)
+        {
+            bool ok = true;
+            for (uint64_t j = 0; j < blk_sz; ++j)
+                if (blk[j] != 'x' && classes[k][j] != 'x' && blk[j] != classes[k][j])
+                { ok = false; break; }
+
+            if (ok)
+            {
+                for (uint64_t j = 0; j < blk_sz; ++j)
+                    if (classes[k][j] == 'x') classes[k][j] = blk[j];
+                MY[i] = (k == 0 ? '1' : '0');
+                hit = true;
+                break;
+            }
+        }
+
+        if (!hit)
+        {
+            if (classes.size() == 2) return false;
+            classes.push_back(blk);
+            MY[i] = (classes.size() == 1 ? '1' : '0');
+        }
+    }
+
+    if (classes.size() != 2) return false;
+
+    MX.clear();
+    for (auto& c : classes)
+        for (char b : c)
+            MX.push_back(b == 'x' ? '0' : b);
+
+    return true;
+}
+
+// =====================================================
+// enumerate (x,y,z)
 // =====================================================
 inline std::vector<std::tuple<int,int,int>> enumerate_xyz(int n)
 {
@@ -104,16 +172,16 @@ inline std::vector<std::tuple<int,int,int>> enumerate_xyz(int n)
 }
 
 // =====================================================
-// 枚举变量划分
+// enumerate partitions A,B,C
 // =====================================================
 inline std::vector<
-    std::tuple<std::vector<int>,std::vector<int>,std::vector<int>>>
+    std::tuple<std::vector<int>, std::vector<int>, std::vector<int>>>
 enumerate_variable_partitions(
     const std::vector<int>& vars,
     int x,int y,int z)
 {
     std::vector<
-        std::tuple<std::vector<int>,std::vector<int>,std::vector<int>>> out;
+        std::tuple<std::vector<int>, std::vector<int>, std::vector<int>>> out;
 
     int n = vars.size();
     std::vector<bool> sel_b(n,false);
@@ -121,14 +189,7 @@ enumerate_variable_partitions(
 
     do {
         std::vector<int> B, rest;
-        for (int i=0;i<n;i++)
-            (sel_b[i]?B:rest).push_back(vars[i]);
-
-        if (x==0)
-        {
-            out.emplace_back(std::vector<int>{}, B, rest);
-            continue;
-        }
+        for (int i=0;i<n;i++) (sel_b[i]?B:rest).push_back(vars[i]);
 
         std::vector<bool> sel_a(rest.size(),false);
         std::fill(sel_a.begin(), sel_a.begin()+x, true);
@@ -146,160 +207,56 @@ enumerate_variable_partitions(
 }
 
 // =====================================================
-// index
-// =====================================================
-inline uint64_t mf_index(uint64_t a,uint64_t b,uint64_t c,int y,int z)
-{
-    return (a<<(y+z)) | (b<<z) | c;
-}
-
-// =====================================================
-// Step 1: MF' → MXY
-// =====================================================
-inline std::string compute_MXYX_from_MF(
-    const std::string& MF,int x,int y,int z)
-{
-    uint64_t H=pow2(x), M=pow2(y), L=pow2(z);
-    std::string MXY(pow2(x+2*y+z),'x');
-
-    for (uint64_t a=0;a<H;a++)
-        for (uint64_t b=0;b<M;b++)
-        {
-            uint64_t blk=a*M*M+b*M+b;
-            for (uint64_t c=0;c<L;c++)
-                MXY[blk*L+c]=MF[mf_index(a,b,c,y,z)];
-        }
-    return MXY;
-}
-
-// =====================================================
-// Step 2: solve MX / MY
-// =====================================================
-inline bool solve_MX_MY_from_MXY(
-    const std::string& MXY,
-    int x,int y,int z,
-    std::string& MX,
-    std::string& MY)
-{
-    BIDEC_DBG("[solve_MX_MY]");
-    BIDEC_INDENT_INC();
-
-    uint64_t MYN = pow2(x+y);
-    uint64_t BS  = pow2(y+z);
-
-    std::vector<std::string> blocks;
-    MY.assign(MYN,'0');
-
-    for (uint64_t i=0;i<MYN;i++)
-    {
-        std::string blk=MXY.substr(i*BS,BS);
-        BIDEC_DBG("Block " << i << " = " << blk);
-
-        bool hit=false;
-        for (size_t k=0;k<blocks.size();k++)
-        {
-            bool ok=true;
-            for (uint64_t j=0;j<BS;j++)
-            {
-                char a=blk[j], b=blocks[k][j];
-                if (a!='x' && b!='x' && a!=b)
-                {
-                    ok=false;
-                    BIDEC_DBG("  conflict at bit " << j);
-                    break;
-                }
-            }
-            if (ok)
-            {
-                for (uint64_t j=0;j<BS;j++)
-                    if (blocks[k][j]=='x')
-                        blocks[k][j]=blk[j];
-                MY[i]=(k==0?'1':'0');
-                hit=true;
-                break;
-            }
-        }
-
-        if (!hit)
-        {
-            if (blocks.size()==2)
-            {
-                BIDEC_DBG("  FAIL: >2 classes");
-                BIDEC_INDENT_DEC();
-                return false;
-            }
-            blocks.push_back(blk);
-            MY[i]=(blocks.size()==1?'1':'0');
-            BIDEC_DBG("  new class");
-        }
-    }
-
-    if (blocks.size()!=2)
-    {
-        BIDEC_DBG("FAIL: class count !=2");
-        BIDEC_INDENT_DEC();
-        return false;
-    }
-
-    MX.clear();
-    for (auto& b:blocks)
-        for (char c:b)
-            MX.push_back(c=='x'?'0':c);
-
-    BIDEC_DBG("MY = " << MY);
-    BIDEC_DBG("MX = " << MX);
-    BIDEC_INDENT_DEC();
-    return true;
-}
-
-// =====================================================
-// ★ 主入口
+// main entry (delay-aware)
 // =====================================================
 inline StrongBiDecResult
 run_strong_bi_dec(const std::string& tt,
-                  const std::vector<int>& order)
+                  const std::vector<int>& order,
+                  uint32_t delay_profile = 0)
 {
     StrongBiDecResult res;
-    int n=order.size();
-    if ((size_t(1)<<n)!=tt.size()) return res;
+    int n = order.size();
+    if ((size_t(1)<<n) != tt.size()) return res;
 
-    BIDEC_DBG("[BiDec] start");
-    BIDEC_DBG("order = " << vec2str(order));
+    auto is_late = [&](int v){ return (delay_profile >> v) & 1; };
 
-    for (auto [x,y,z]:enumerate_xyz(n))
+    int total_late = 0;
+    for (int v : order) if (is_late(v)) total_late++;
+
+    for (auto [x,y,z] : enumerate_xyz(n))
     {
-        BIDEC_DBG("Try (x,y,z)=("<<x<<","<<y<<","<<z<<")");
-        BIDEC_INDENT_INC();
-
-        auto parts=enumerate_variable_partitions(order,x,y,z);
-        for (auto& p:parts)
+        auto parts = enumerate_variable_partitions(order,x,y,z);
+        for (auto const& tpl : parts)
         {
-            auto& A=std::get<0>(p);
-            auto& B=std::get<1>(p);
-            auto& C=std::get<2>(p);
+            const auto& A = std::get<0>(tpl);
+            const auto& B = std::get<1>(tpl);
+            const auto& C = std::get<2>(tpl);
 
-            BIDEC_DBG("A="<<vec2str(A)<<" B="<<vec2str(B)<<" C="<<vec2str(C));
+            bool bad = false;
+            for (int v : A)
+                if (is_late(v)) { bad = true; break; }
+            if (bad) continue;
 
-            std::vector<int> new_order=A;
-            new_order.insert(new_order.end(),B.begin(),B.end());
-            new_order.insert(new_order.end(),C.begin(),C.end());
+            int lateC = 0;
+            for (int v : C) if (is_late(v)) lateC++;
+            if (lateC < std::min((int)C.size(), total_late)) continue;
 
-            std::string MFp=reorder_tt_by_var_order(tt,n,new_order,order);
-            std::string MXY=compute_MXYX_from_MF(MFp,x,y,z);
+            std::vector<int> new_order;
+            new_order.insert(new_order.end(), A.begin(), A.end());
+            new_order.insert(new_order.end(), B.begin(), B.end());
+            new_order.insert(new_order.end(), C.begin(), C.end());
 
-            std::string MX,MY;
-            if (!solve_MX_MY_from_MXY(MXY,x,y,z,MX,MY))
-                continue;
+            std::string MFp = reorder_tt_by_var_order(tt,n,new_order,order);
+            std::string MXY = compute_MXYX_from_MF(MFp,x,y,z);
 
-            res.found=true;
+            std::string MX, MY;
+            if (!solve_MX_MY_from_MXY(MXY,x,y,z,MX,MY)) continue;
+
+            res.found = true;
             res.A=A; res.B=B; res.C=C;
             res.MX=MX; res.MY=MY;
-
-            BIDEC_DBG("[BiDec] SUCCESS");
-            BIDEC_INDENT_DEC();
             return res;
         }
-        BIDEC_INDENT_DEC();
     }
     return res;
 }
