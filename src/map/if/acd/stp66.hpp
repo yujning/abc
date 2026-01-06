@@ -13,10 +13,19 @@ namespace acd
 
 inline bool stp66_find_mx_my( const TT& root_tt, Lut66DsdResult& result )
 {
-  result = run_66lut_dsd_by_mx_subset( root_tt.f01, root_tt.order, /*depth_for_print=*/0 );
-   if ( result.found )
-    return true;
 
+  LUT66_DSD_DEBUG_PRINT = true;
+
+  std::cout << "[STP66] Try 66-LUT DSD first" << std::endl;
+  // 优先尝试 66-LUT DSD 算法
+  result = run_66lut_dsd_by_mx_subset( root_tt.f01, root_tt.order, /*depth_for_print=*/0 );
+ if ( result.found )
+  {
+    std::cout << "[STP66] 66-LUT DSD succeeded" << std::endl;
+    return true;
+  }
+
+  std::cout << "[STP66] 66-LUT DSD failed, fallback to strong bi-decomposition" << std::endl;
   // 若 DSD 失败，尝试强双分解算法
   const int n = static_cast<int>( root_tt.order.size() );
   if ( ( size_t( 1 ) << n ) != root_tt.f01.size() )
@@ -71,13 +80,14 @@ inline bool stp66_find_mx_my( const TT& root_tt, Lut66DsdResult& result )
       fill_pos( result.mx_vars_msb2lsb, result.mx_pos );
       fill_pos( result.my_vars_msb2lsb, result.my_pos );
 
+      std::cout << "[STP66] Strong bi-decomposition succeeded" << std::endl;
       return true;
     }
   }
 
+  std::cout << "[STP66] Strong bi-decomposition failed" << std::endl;
   return false;
 }
-
 } // namespace acd
 
 ABC_NAMESPACE_CXX_HEADER_END

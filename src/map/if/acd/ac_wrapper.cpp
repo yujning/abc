@@ -21,6 +21,7 @@
 #include "acd66.hpp"
 #include "acdXX.hpp"
 #include "stp66.hpp"
+#include <cstdio>
 ABC_NAMESPACE_IMPL_START
 
 int acd_evaluate( word * pTruth, unsigned nVars, int lutSize, unsigned *pdelay, unsigned *cost, int try_no_late_arrival )
@@ -202,10 +203,20 @@ static inline uint64_t truth_string_to_uint64( const std::string& tt )
 int stpxx_decompose( word * pTruth, unsigned nVars, unsigned lutSize, unsigned *pdelay, unsigned char *decomposition )
 {
   using namespace acd;
+
   (void)pdelay;
 
-  if ( lutSize != 6 || nVars == 0 || nVars > 11 )
-    return 1;
+  if ( lutSize != 6 )
+  {
+    std::printf( "[STP66] Skip: unsupported LUT size %u, falling back to default decomposition\n", lutSize );
+    return acd_decompose( pTruth, nVars, lutSize, pdelay, decomposition );
+  }
+
+  if ( nVars == 0 || nVars > 11 )
+  {
+    std::printf( "[STP66] Skip: cut size %u is outside supported range [1, 11], falling back to default decomposition\n", nVars );
+    return acd_decompose( pTruth, nVars, lutSize, pdelay, decomposition );
+  }
 
   TT root_tt;
   root_tt.f01 = truth_to_string( pTruth, nVars );
@@ -215,64 +226,11 @@ int stpxx_decompose( word * pTruth, unsigned nVars, unsigned lutSize, unsigned *
 
   Lut66DsdResult res;
   if ( !stp66_find_mx_my( root_tt, res ) )
-    return 1;
+  {
+    std::printf( "[STP66] No 6+6 decomposition found, falling back to default decomposition\n" );
+    return acd_decompose( pTruth, nVars, lutSize, pdelay, decomposition );
+  }
 
-  std::vector<int> my_vars_msb2lsb = res.my_vars_msb2lsb;
-  std::vector<int> mx_vars_msb2lsb = res.mx_vars_msb2lsb;
-
-  unsigned char* pArray = decomposition;
-  unsigned char bytes = 2;
-
-  /* number of LUTs */
-  ++pArray;
-  *pArray = 2;
-  ++pArray;
-
-  auto write_support_lsb2msb = [&]( const std::vector<int>& vars_msb2lsb ) {
-    for ( auto it = vars_msb2lsb.rbegin(); it != vars_msb2lsb.rend(); ++it )
-    {
-      *pArray = static_cast<unsigned char>( *it );
-      ++pArray;
-      ++bytes;
-    }
-  };
-
-  auto write_truth_table = [&]( const std::string& tt, uint32_t fanin ) {
-    uint64_t value = truth_string_to_uint64( tt );
-    uint32_t tt_num_bytes = ( fanin <= 3 ) ? 1u : ( 1u << ( fanin - 3 ) );
-    for ( uint32_t i = 0; i < tt_num_bytes; ++i )
-    {
-      *pArray = static_cast<unsigned char>( ( value >> ( 8 * i ) ) & 0xFF );
-      ++pArray;
-      ++bytes;
-    }
-  };
-
-  /* bottom LUT (MY) */
-  uint32_t my_fanin = static_cast<uint32_t>( my_vars_msb2lsb.size() );
-  *pArray = static_cast<unsigned char>( my_fanin );
-  ++pArray;
-  ++bytes;
-  write_support_lsb2msb( my_vars_msb2lsb );
-  write_truth_table( res.My, my_fanin );
-
-  /* top LUT (MX) */
-  const int my_output_id = static_cast<int>( nVars );
-  std::vector<int> mx_support_msb2lsb;
-  mx_support_msb2lsb.reserve( mx_vars_msb2lsb.size() + 1 );
-  mx_support_msb2lsb.push_back( my_output_id );
-  mx_support_msb2lsb.insert( mx_support_msb2lsb.end(), mx_vars_msb2lsb.begin(), mx_vars_msb2lsb.end() );
-
-  uint32_t mx_fanin = static_cast<uint32_t>( mx_support_msb2lsb.size() );
-  *pArray = static_cast<unsigned char>( mx_fanin );
-  ++pArray;
-  ++bytes;
-  write_support_lsb2msb( mx_support_msb2lsb );
-  write_truth_table( res.Mx, mx_fanin );
-
-  /* write total bytes */
-  *decomposition = bytes;
-  return 0;
 }
 
 ABC_NAMESPACE_IMPL_END
