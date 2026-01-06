@@ -199,9 +199,10 @@ static inline uint64_t truth_string_to_uint64( const std::string& tt )
   return value;
 }
 
-int stpxx_decompose( word * pTruth, unsigned lutSize, unsigned nVars, unsigned char *decomposition )
+int stpxx_decompose( word * pTruth, unsigned nVars, unsigned lutSize, unsigned *pdelay, unsigned char *decomposition )
 {
   using namespace acd;
+  (void)pdelay;
 
   if ( lutSize != 6 || nVars == 0 || nVars > 11 )
     return 1;
