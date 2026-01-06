@@ -231,6 +231,12 @@ int stpxx_decompose( word * pTruth, unsigned nVars, unsigned lutSize, unsigned *
     return acd_decompose( pTruth, nVars, lutSize, pdelay, decomposition );
   }
 
+    // TODO: Export the found 6+6 DSD decomposition into the "decomposition" buffer.
+  // For now, fall back to the default decomposition to keep the flow stable.
+  std::printf(
+      "[STP66] 6+6 decomposition found, exporting is not implemented yet; using default decomposition\n" );
+  return acd_decompose( pTruth, nVars, lutSize, pdelay, decomposition );
+
 }
 
 ABC_NAMESPACE_IMPL_END
