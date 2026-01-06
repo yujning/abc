@@ -5,7 +5,7 @@
 #include "node_global.hpp"   // 提供 TT
 #include "66lut_dsd.hpp"     // 66-LUT DSD
 #include "66lut_bidec.hpp"   // ★ 现在可以安全 include 了
-
+#include <cstdint>
 #include <iostream>
 
 ABC_NAMESPACE_CXX_HEADER_START
@@ -13,7 +13,10 @@ ABC_NAMESPACE_CXX_HEADER_START
 namespace acd
 {
 
-inline bool stp66_find_mx_my( const TT& root_tt, Lut66DsdResult& result )
+inline bool stp66_find_mx_my(
+    const TT& root_tt,
+    uint32_t delay_profile,
+    Lut66DsdResult& result )
 {
     LUT66_DSD_DEBUG_PRINT   = true;
     LUT66_BIDEC_DEBUG_PRINT = true;
@@ -21,7 +24,7 @@ inline bool stp66_find_mx_my( const TT& root_tt, Lut66DsdResult& result )
     std::cout << "[STP66] Try 66-LUT DSD\n";
 
     result = run_66lut_dsd_by_mx_subset(
-        root_tt.f01, root_tt.order, 0 );
+                root_tt.f01, root_tt.order, delay_profile );
 
     bool meaningful_dsd =
         result.found &&
@@ -39,7 +42,7 @@ inline bool stp66_find_mx_my( const TT& root_tt, Lut66DsdResult& result )
     std::cout << "[STP66] DSD trivial or failed, try strong bi-dec\n";
 
     StrongBiDecResult bi =
-        run_strong_bi_dec(root_tt.f01, root_tt.order);
+            run_strong_bi_dec(root_tt.f01, root_tt.order, delay_profile);
 
     if ( !bi.found )
     {

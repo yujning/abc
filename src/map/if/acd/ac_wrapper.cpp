@@ -321,12 +321,14 @@ int stpxx_decompose(
   for ( int v = (int)nVars - 1; v >= 0; --v )
     root_tt.order.push_back( v + 1 ); // 1-based
 
+  const uint32_t delay_profile = *pdelay;
+
   Lut66DsdResult res;
-  if ( stp66_find_mx_my( root_tt, res ) && res.found )
+  if ( stp66_find_mx_my( root_tt, delay_profile, res ) && res.found )
   {
     if ( encode_2lut_decomposition_abc( nVars, res, decomposition ) == 0 )
     {
-      *pdelay = 0;
+       *pdelay = delay_profile;
       std::printf(
         "[STP66] Exported 2-LUT decomposition: |MY|=%zu, |MX|=%zu\n",
         res.my_vars_msb2lsb.size(),
