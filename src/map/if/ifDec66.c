@@ -288,7 +288,17 @@ int If_CluCheckXX( If_Man_t * p, word * pTruth0, int lutSize, int nVars, int fHa
     /* new entry */
     if ( G1.nVars == 0 )
     {
-        G1.nVars = acdXX_evaluate( pTruth0, lutSize, nVars );
+    int res = acdXX_evaluate( pTruth0, lutSize, nVars );
+    //int res = stpXX_evaluate_simple( pTruth0, lutSize, nVars );
+
+    if ( res > 0 )
+        printf("[ACDXX][CHECK] SUCCESS: cut can be decomposed (lut=%d, nVars=%d)\n",
+               lutSize, nVars);
+    else
+        printf("[ACDXX][CHECK] FAIL: cut cannot be decomposed (lut=%d, nVars=%d)\n",
+               lutSize, nVars);
+
+    G1.nVars = res;
     }
 
     if ( pHashed )

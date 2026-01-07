@@ -485,16 +485,10 @@ void Abc_DecRecordToHop( Abc_Ntk_t * pNtkNew, If_Man_t * pIfMan, If_Cut_t * pCut
     }
     //assert( val == 0 );
 
-        if ( val != 0 )
+    if ( val != 0 )
     {
-        Abc_Print( -1, "STP decomposition failed; using direct truth table node.\n" );
-        /* add fanins */
-        If_CutForEachLeaf( pIfMan, pCutBest, pIfLeaf, v )
-            Abc_ObjAddFanin( pNodeTop, (Abc_Obj_t *)If_ObjCopy( pIfLeaf ) );
-
-        pNodeTop->Level = Abc_ObjLevelNew( pNodeTop );
-        pNodeTop->pData = Kit_TruthToHop( (Hop_Man_t *)pNtkNew->pManFunc, (unsigned *)pTruth, If_CutLeaveNum(pCutBest), vCover );
-        return;
+        Abc_Print( -1, "STP decomposition failed; this should not happen (cut was pre-validated).\n" );
+        assert(0); // 理论上不应发生
     }
 
     // convert the LUT-structure into a set of logic nodes in Abc_Ntk_t 

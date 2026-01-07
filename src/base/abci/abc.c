@@ -22384,7 +22384,7 @@ int Abc_CommandIf( Abc_Frame_t * pAbc, int argc, char ** argv )
             if ( pPars->nLutDecSize < 3 || pPars->nLutDecSize > 6 )
                 goto usage;
             break;
-        case 'Z':
+        case 'Z'://if -Z 
             if ( globalUtilOptind >= argc )
             {
                 Abc_Print( -1, "Command line switch \"-Z\" should be followed by a positive integer 3, 4, 5, or 6.\n" );
@@ -22451,6 +22451,7 @@ int Abc_CommandIf( Abc_Frame_t * pAbc, int argc, char ** argv )
             }
             pPars->pLutStruct = argv[globalUtilOptind];
             pPars->fEnableStructN = 1;
+            printf("Using J decomposition\n");
             globalUtilOptind++;
             if ( strlen(pPars->pLutStruct) != 2 && strlen(pPars->pLutStruct) != 3 )
             {
@@ -22643,8 +22644,16 @@ int Abc_CommandIf( Abc_Frame_t * pAbc, int argc, char ** argv )
         }
         if ( pPars->fEnableStructN )
         {
+            printf("[ABC][IF] Structural-N (-J) enabled\n");
+
             pPars->pFuncCell = pPars->fDelayOptLut ? NULL : If_CutPerformCheckXX;
+
+            if ( pPars->fDelayOptLut )
+                printf("[ABC][IF] Delay-opt LUT: pFuncCell = NULL\n");
+            else
+                printf("[ABC][IF] pFuncCell = If_CutPerformCheckXX\n");
         }
+
         else
         {
             pPars->pFuncCell = pPars->fDelayOptLut ? NULL : If_CutPerformCheck16;

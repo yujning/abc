@@ -1085,6 +1085,7 @@ private:
    */
   void get_decomposition_abc( unsigned char* decompArray )
   {
+    std::cout << "[ABC][ACD] Using ACD xx decomposition\n";
     unsigned char* pArray = decompArray;
     unsigned char bytes = 2;
 

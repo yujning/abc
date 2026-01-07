@@ -412,6 +412,9 @@ int If_CutLutBalanceEval( If_Man_t * p, If_Cut_t * pCut )
     }
 }
 
+
+
+
 int If_LutDecEval( If_Man_t * p, If_Cut_t * pCut, If_Obj_t * pObj, int optDelay, int fFirst )
 {
     pCut->fUser = 1;
@@ -490,7 +493,32 @@ int If_LutDecEval( If_Man_t * p, If_Cut_t * pCut, If_Obj_t * pObj, int optDelay,
 
     /* returns the delay of the decomposition */
     word *pTruth = If_CutTruthW( p, pCut );
-    int val = acd_evaluate( pTruth, pCut->nLeaves, LutSize, &uLeafMask, &cost, !use_late_arrival );
+    //int val = acd_evaluate( pTruth, pCut->nLeaves, LutSize, &uLeafMask, &cost, !use_late_arrival );
+
+    int val;
+
+    if ( p->pPars->fUserLutDec && LutSize == 6 )
+    {
+        // ★ 用 STP66 做 evaluate（是否可分解）
+        val = stpxx_evaluate(
+            pTruth,
+            pCut->nLeaves,
+            LutSize,
+            &uLeafMask,
+            &cost,
+            !use_late_arrival );
+    }
+    else
+    {
+        // ★ 其它情况仍然用 ACD
+        val = acd_evaluate(
+            pTruth,
+            pCut->nLeaves,
+            LutSize,
+            &uLeafMask,
+            &cost,
+            !use_late_arrival );
+    }
 
     /* not feasible decomposition */
     pCut->decDelay = uLeafMask;

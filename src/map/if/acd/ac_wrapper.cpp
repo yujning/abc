@@ -24,7 +24,15 @@
 
 #include <cstdio>
 #include <string>
+extern "C" int stpxx_decompose(
+    word * pTruth,
+    unsigned nVars,
+    int lutSize,
+    unsigned *pdelay,
+    unsigned char *decomposition );
 
+extern "C" int stpxx_evaluate( word * pTruth, unsigned nVars, int lutSize,
+                    unsigned *pdelay, unsigned *cost, int try_no_late_arrival );
 ABC_NAMESPACE_IMPL_START
 std::string bin_to_hex(const std::string& bin)
 {
@@ -241,25 +249,62 @@ static inline std::string truth_to_string( word* pTruth, unsigned nVars )
 // =====================================================
 // ★ STP66 → ABC 编码辅助函数
 // =====================================================
+// =====================================================
+// ★ STP66 evaluate（ACD 同签名/同语义）
+//   - 成功：返回 level = 1(有late) or 2(无late)
+//   - 失败：返回 -1（cut 判死，避免 direct TT node 产生 >6 LUT）
+//   - try_no_late_arrival == 1 时：失败会再尝试把 delay_profile 置 0 再跑一次（模仿 ACD）
+// =====================================================
 
-static inline void write_lut_tt_bytes(
-    unsigned char*& p,
-    const std::string& tt_bits )
+int stpxx_evaluate( word * pTruth, unsigned nVars, int lutSize,
+                    unsigned *pdelay, unsigned *cost, int try_no_late_arrival )
 {
-  uint64_t v = 0;
-  for ( size_t i = 0; i < tt_bits.size(); ++i )
-    if ( tt_bits[i] == '1' )
-      v |= ( 1ull << i );
+  using namespace acd;
 
-  unsigned m = 0;
-  while ( ( 1u << m ) < tt_bits.size() ) ++m;
+  if ( lutSize != 6 )
+    return -1;
+  if ( nVars == 0 || nVars > 11 )
+    return -1;
 
-  unsigned num_bytes = ( m <= 3 ) ? 1u : ( 1u << ( m - 3 ) );
-  if ( num_bytes > 8 ) num_bytes = 8;
+  // IF 传进来的 *pdelay 是 “late-arrival mask”(uLeafMask)
+  uint32_t dp = *pdelay;
 
-  for ( unsigned j = 0; j < num_bytes; ++j )
-    *p++ = (unsigned char)( ( v >> ( 8 * j ) ) & 0xFF );
+  auto try_run = [&](uint32_t delay_profile)->bool {
+    TT root_tt;
+    root_tt.f01 = truth_to_string( pTruth, nVars );
+    root_tt.order.clear();
+    root_tt.order.reserve( nVars );
+    for ( int v = (int)nVars - 1; v >= 0; --v )
+      root_tt.order.push_back( v );
+
+    Lut66DsdResult res;
+    if ( !stp66_find_mx_my( root_tt, delay_profile, res ) || !res.found )
+      return false;
+
+    // 你现在 STP 输出固定 2-LUT 结构
+    *cost = 2;
+    *pdelay = delay_profile; // 关键：告诉 IF 本次用的 delay_profile（可能被置 0）
+    return true;
+  };
+
+  if ( try_run(dp) )
+  {
+    // ACD 的 run：delay_profile==0 -> 2 levels，否则 1 level
+    return (dp == 0) ? 2 : 1;
+  }
+
+  // 模仿 ACD：如果带 dp 不行，且允许 try_no_late_arrival，则再试 dp=0
+  if ( try_no_late_arrival )
+  {
+    if ( try_run(0) )
+      return 2; // dp=0 -> 2 levels
+  }
+
+  // 不可分解：cut 判死（非常关键，否则就会走 direct truth table node，出现 10-LUT）
+  *pdelay = 0;
+  return -1;
 }
+
 
 
 static inline bool write_lut_tt_bytes_safe(
@@ -386,9 +431,10 @@ static inline int encode_2lut_decomposition_abc_safe(
 int stpxx_decompose(
     word * pTruth,
     unsigned nVars,
-    unsigned lutSize,
+    int lutSize,
     unsigned *pdelay,
     unsigned char *decomposition )
+
 {
   using namespace acd;
 
@@ -434,6 +480,7 @@ int stpxx_decompose(
         "[STP66] Exported 2-LUT decomposition: |MY|=%zu, |MX|=%zu\n",
         res.my_vars_msb2lsb.size(),
         1 + res.mx_vars_msb2lsb.size() );
+            
       return 0;
     }
   }
@@ -441,6 +488,27 @@ int stpxx_decompose(
   //return acd_decompose( pTruth, nVars, lutSize, pdelay, decomposition );
    *pdelay = 0;
   return -1;
+}
+int stpXX_evaluate_simple( word * pTruth, unsigned lutSize, unsigned nVars )
+{
+    if ( lutSize != 6 )
+        return 0;
+
+    if ( nVars == 0 || nVars > 11 )
+        return 0;
+
+    TT root_tt;
+    root_tt.f01 = truth_to_string( pTruth, nVars );
+    root_tt.order.clear();
+    root_tt.order.reserve( nVars );
+    for ( int v = (int)nVars - 1; v >= 0; --v )
+        root_tt.order.push_back( v );
+
+    Lut66DsdResult res;
+    if ( acd::stp66_find_mx_my( root_tt, /*delay_profile=*/0, res ) && res.found )
+        return 1;
+
+    return 0;
 }
 
 ABC_NAMESPACE_IMPL_END

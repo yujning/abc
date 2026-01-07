@@ -2,9 +2,9 @@
 
 #include "misc/util/abc_global.h"
 
-#include "node_global.hpp"   // 提供 TT
-#include "66lut_dsd.hpp"     // 66-LUT DSD
-#include "66lut_bidec.hpp"   // ★ 现在可以安全 include 了
+#include "node_global.hpp"   // TT
+#include "66lut_dsd.hpp"     // defines ::Lut66DsdResult (likely)
+#include "66lut_bidec.hpp"   // StrongBiDecResult etc
 #include <cstdint>
 #include <iostream>
 
@@ -12,6 +12,9 @@ ABC_NAMESPACE_CXX_HEADER_START
 
 namespace acd
 {
+    // ✅ 关键：把全局类型“引入” acd 命名空间，修掉 acd::Lut66DsdResult 找不到
+    using ::Lut66DsdResult;
+    using ::StrongBiDecResult;
 
 inline bool stp66_find_mx_my(
     const TT& root_tt,
