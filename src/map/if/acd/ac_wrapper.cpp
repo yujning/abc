@@ -350,10 +350,19 @@ int stpxx_decompose(
   using namespace acd;
 
   if ( lutSize != 6 )
-    return acd_decompose( pTruth, nVars, lutSize, pdelay, decomposition );
+    //return acd_decompose( pTruth, nVars, lutSize, pdelay, decomposition );
+      {
+    *pdelay = 0;
+    return -1;
+  }
 
   if ( nVars == 0 || nVars > 11 )
-    return acd_decompose( pTruth, nVars, lutSize, pdelay, decomposition );
+//return acd_decompose( pTruth, nVars, lutSize, pdelay, decomposition );
+  {
+    *pdelay = 0;
+    return -1;
+  }
+
 
   TT root_tt;
   root_tt.f01 = truth_to_string( pTruth, nVars );
@@ -370,7 +379,7 @@ int stpxx_decompose(
       "[STP66] truth table (hex): 0x%s\n",
       hex.c_str()
   );
-  
+
   Lut66DsdResult res;
   if ( stp66_find_mx_my( root_tt, delay_profile, res ) && res.found )
   {
@@ -385,7 +394,9 @@ int stpxx_decompose(
     }
   }
 
-  return acd_decompose( pTruth, nVars, lutSize, pdelay, decomposition );
+  //return acd_decompose( pTruth, nVars, lutSize, pdelay, decomposition );
+   *pdelay = 0;
+  return -1;
 }
 
 ABC_NAMESPACE_IMPL_END
