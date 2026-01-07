@@ -27,7 +27,8 @@ ABC_NAMESPACE_IMPL_START
 #define CLU_VAR_MAX  11
 #define CLU_MEM_MAX  1000  // 1 GB
 #define CLU_UNUSED   0xff
-
+static unsigned long long s_IfCluCheckXXTotal = 0;
+static unsigned long long s_IfCluCheckXXSuccess = 0;
 ////////////////////////////////////////////////////////////////////////
 ///                        DECLARATIONS                              ///
 ////////////////////////////////////////////////////////////////////////
@@ -290,13 +291,18 @@ int If_CluCheckXX( If_Man_t * p, word * pTruth0, int lutSize, int nVars, int fHa
     {
     int res = acdXX_evaluate( pTruth0, lutSize, nVars );
     //int res = stpXX_evaluate_simple( pTruth0, lutSize, nVars );
-
+       s_IfCluCheckXXTotal++;
     if ( res > 0 )
-        printf("[ACDXX][CHECK] SUCCESS: cut can be decomposed (lut=%d, nVars=%d)\n",
-               lutSize, nVars);
+   {
+        s_IfCluCheckXXSuccess++;
+        printf("[STPXX][CHECK] SUCCESS: cut can be decomposed (lut=%d, nVars=%d)\n",  lutSize, nVars);
+    }
     else
-        printf("[ACDXX][CHECK] FAIL: cut cannot be decomposed (lut=%d, nVars=%d)\n",
+     printf("[STPXX][CHECK] FAIL: cut cannot be decomposed (lut=%d, nVars=%d)\n",
                lutSize, nVars);
+
+    printf("[STPXX][CHECK] TOTAL=%llu SUCCESS=%llu\n",
+           s_IfCluCheckXXTotal, s_IfCluCheckXXSuccess);
 
     G1.nVars = res;
     }
