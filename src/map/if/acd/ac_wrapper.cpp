@@ -26,6 +26,46 @@
 #include <string>
 
 ABC_NAMESPACE_IMPL_START
+std::string bin_to_hex(const std::string& bin)
+{
+    std::string b = bin;
+
+    // 左侧补 0，使长度是 4 的倍数
+    size_t pad = (4 - b.size() % 4) % 4;
+    b.insert(0, pad, '0');
+
+    std::string hex;
+    hex.reserve(b.size() / 4);
+
+    for (size_t i = 0; i < b.size(); i += 4) {
+        int v = (b[i]   - '0') << 3 |
+                (b[i+1] - '0') << 2 |
+                (b[i+2] - '0') << 1 |
+                (b[i+3] - '0');
+        hex.push_back("0123456789ABCDEF"[v]);
+    }
+
+    return hex;
+}
+static void stp66_print_delay_profile( unsigned nVars, uint32_t delay_profile )
+{
+  std::printf( "[STP66] delay_profile=0x%08x, late_vars(abc_idx):",
+               delay_profile );
+  bool printed = false;
+  for ( unsigned v = 0; v < nVars; ++v )
+  {
+    if ( delay_profile & ( 1u << v ) )
+    {
+      std::printf( " %u", v );
+      printed = true;
+    }
+  }
+  if ( !printed )
+  {
+    std::printf( " none" );
+  }
+  std::printf( "\n" );
+}
 
 // =====================================================
 // 原始 ACD 接口（保持不变）
@@ -322,7 +362,15 @@ int stpxx_decompose(
     root_tt.order.push_back( v + 1 ); // 1-based
 
   const uint32_t delay_profile = *pdelay;
+  stp66_print_delay_profile( nVars, delay_profile );
+  std::printf( "[STP66] truth table (original order): %s\n", root_tt.f01.c_str() );
+  std::string hex = bin_to_hex(root_tt.f01);
 
+  std::printf(
+      "[STP66] truth table (hex): 0x%s\n",
+      hex.c_str()
+  );
+  
   Lut66DsdResult res;
   if ( stp66_find_mx_my( root_tt, delay_profile, res ) && res.found )
   {
