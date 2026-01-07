@@ -40,7 +40,8 @@ static Vec_Ptr_t * Abc_NtkFindGoodOrder( Abc_Ntk_t * pNtk );
 
 extern void Abc_NtkBddReorder( Abc_Ntk_t * pNtk, int fVerbose );
 extern void Abc_NtkBidecResyn( Abc_Ntk_t * pNtk, int fVerbose );
- 
+
+
 ////////////////////////////////////////////////////////////////////////
 ///                     FUNCTION DEFINITIONS                         ///
 ////////////////////////////////////////////////////////////////////////
@@ -435,6 +436,9 @@ Hop_Obj_t * Abc_NodeBuildFromMini( Hop_Man_t * pMan, If_Man_t * p, If_Cut_t * pC
  ***********************************************************************/
 void Abc_DecRecordToHop( Abc_Ntk_t * pNtkNew, If_Man_t * pIfMan, If_Cut_t * pCutBest, If_Obj_t * pIfObj, Vec_Int_t * vCover, Abc_Obj_t * pNodeTop )
 {
+
+
+
     extern Hop_Obj_t * Kit_TruthToHop( Hop_Man_t * pMan, unsigned * pTruth, int nVars, Vec_Int_t * vMemory );
     assert( !pIfMan->pPars->fUseTtPerm );
 
@@ -593,6 +597,8 @@ Abc_Obj_t * Abc_NodeFromIf_rec( Abc_Ntk_t * pNtkNew, If_Man_t * pIfMan, If_Obj_t
     assert( pIfObj->Type == IF_AND );
     // get the parameters of the best cut
     pCutBest = If_ObjCutBest( pIfObj );
+
+
     if ( pIfMan->pPars->fUserSesLib )
     {
         // create the subgraph composed of Abc_Obj_t nodes based on the given cut

@@ -261,13 +261,40 @@ static inline void write_lut_tt_bytes(
     *p++ = (unsigned char)( ( v >> ( 8 * j ) ) & 0xFF );
 }
 
+
+static inline bool write_lut_tt_bytes_safe(
+    unsigned char*& p,
+    unsigned char* end,
+    const std::string& tt_bits,
+    unsigned m /* #fanin */)
+{
+  // tt_bits size must be 2^m
+  if (tt_bits.size() != (size_t(1) << m)) return false;
+
+  unsigned num_bytes = (m <= 3) ? 1u : (1u << (m - 3));
+  if (p + num_bytes > end) return false;
+
+  // pack bits into bytes (LSB-first)
+  for (unsigned byte = 0; byte < num_bytes; ++byte)
+  {
+    unsigned char v = 0;
+    for (unsigned b = 0; b < 8; ++b)
+    {
+      unsigned idx = byte * 8 + b;
+      if (idx < tt_bits.size() && tt_bits[idx] == '1')
+        v |= (unsigned char)(1u << b);
+    }
+    *p++ = v;
+  }
+  return true;
+}
+
 static inline std::string build_mux_tt_from_blocks(
     const std::string& block0,
     const std::string& block1 )
 {
   const size_t L = block0.size();
   std::string out( 2 * L, '0' );
-
   for ( size_t i = 0; i < 2 * L; ++i )
   {
     const int sel = (int)( i >= L );
@@ -277,61 +304,77 @@ static inline std::string build_mux_tt_from_blocks(
   return out;
 }
 
-static inline int encode_2lut_decomposition_abc(
+static inline int encode_2lut_decomposition_abc_safe(
     unsigned nVars,
     const Lut66DsdResult& res,
-    unsigned char* decompArray )
+    unsigned char* decompArray,
+    unsigned decompCapBytes = 92 )
 {
-  const unsigned m1 = (unsigned)res.my_vars_msb2lsb.size();
-  const unsigned k  = (unsigned)res.mx_vars_msb2lsb.size();
-  const unsigned m2 = 1u + k;
+  if (!decompArray || decompCapBytes < 2) return -1;
 
-  if ( m1 == 0 || m1 > 6 || m2 == 0 || m2 > 6 )
-    return -1;
+  const unsigned m1 = (unsigned)res.my_vars_msb2lsb.size(); // fanin of MY
+  const unsigned k  = (unsigned)res.mx_vars_msb2lsb.size(); // mx vars (without MY)
+  const unsigned m2 = 1u + k;                               // fanin of MX
 
-  if ( res.My.size() != (size_t(1) << m1) )
-    return -1;
+  if (m1 < 1 || m1 > 6) return -1;
+  if (m2 < 1 || m2 > 6) return -1;
+
+  if (res.My.size() != (size_t(1) << m1)) return -1;
 
   const size_t L = size_t(1) << k;
-  if ( res.Mx.size() != 2 * L )
-    return -1;
+  if (res.Mx.size() != 2 * L) return -1;
 
-  const std::string block0 = res.Mx.substr( 0, L );
-  const std::string block1 = res.Mx.substr( L, L );
-  const std::string mx_tt  = build_mux_tt_from_blocks( block0, block1 );
+  const std::string block0 = res.Mx.substr(0, L);
+  const std::string block1 = res.Mx.substr(L, L);
+  const std::string mx_tt  = build_mux_tt_from_blocks(block0, block1);
+  if (mx_tt.size() != (size_t(1) << m2)) return -1;
 
-  unsigned char* p = decompArray;
-  unsigned bytes = 2;
+  unsigned char* p   = decompArray;
+  unsigned char* end = decompArray + decompCapBytes;
 
-  p++;
-  *p++ = 2; // two LUTs
+  // header: [numBytes][numLuts]
+  if (end - p < 2) return -1;
+  *p++ = 0;       // placeholder numBytes
+  *p++ = 2;       // 2 LUTs
 
   // ---- LUT0: MY ----
-  *p++ = (unsigned char)m1; bytes++;
-  for ( int i = (int)m1 - 1; i >= 0; --i )
-  {
-    int abc_idx = res.my_vars_msb2lsb[i] - 1;
-    if ( abc_idx < 0 || abc_idx >= (int)nVars ) return -1;
-    *p++ = (unsigned char)abc_idx; bytes++;
-  }
-  write_lut_tt_bytes( p, res.My );
-  bytes += ( m1 <= 3 ) ? 1u : ( 1u << ( m1 - 3 ) );
+  if (p >= end) return -1;
+  *p++ = (unsigned char)m1;
 
-  const int my_node_idx = (int)nVars;
+  // fanins list must be LSB->MSB of the LUT truth table.
+  // Your res.my_vars_msb2lsb is MSB->LSB, so we output reversed.
+  for (int i = (int)m1 - 1; i >= 0; --i)
+  {
+    int abc_idx = res.my_vars_msb2lsb[i];   // ✅ now 0-based already
+    if (abc_idx < 0 || abc_idx >= (int)nVars) return -1;
+    if (p >= end) return -1;
+    *p++ = (unsigned char)abc_idx;
+  }
+
+  if (!write_lut_tt_bytes_safe(p, end, res.My, m1)) return -1;
+
+  const int my_node_idx = (int)nVars; // internal node index in ABC record
 
   // ---- LUT1: MX ----
-  *p++ = (unsigned char)m2; bytes++;
-  for ( int i = (int)k - 1; i >= 0; --i )
+  if (p >= end) return -1;
+  *p++ = (unsigned char)m2;
+
+  for (int i = (int)k - 1; i >= 0; --i)
   {
-    int abc_idx = res.mx_vars_msb2lsb[i] - 1;
-    if ( abc_idx < 0 || abc_idx >= (int)nVars ) return -1;
-    *p++ = (unsigned char)abc_idx; bytes++;
+    int abc_idx = res.mx_vars_msb2lsb[i];   // ✅ now 0-based already
+    if (abc_idx < 0 || abc_idx >= (int)nVars) return -1;
+    if (p >= end) return -1;
+    *p++ = (unsigned char)abc_idx;
   }
-  *p++ = (unsigned char)my_node_idx; bytes++;
 
-  write_lut_tt_bytes( p, mx_tt );
-  bytes += ( m2 <= 3 ) ? 1u : ( 1u << ( m2 - 3 ) );
+  if (p >= end) return -1;
+  *p++ = (unsigned char)my_node_idx;
 
+  if (!write_lut_tt_bytes_safe(p, end, mx_tt, m2)) return -1;
+
+  // finalize numBytes
+  unsigned bytes = (unsigned)(p - decompArray);
+  if (bytes > decompCapBytes) return -1;
   decompArray[0] = (unsigned char)bytes;
   return 0;
 }
@@ -368,7 +411,7 @@ int stpxx_decompose(
   root_tt.f01 = truth_to_string( pTruth, nVars );
   root_tt.order.reserve( nVars );
   for ( int v = (int)nVars - 1; v >= 0; --v )
-    root_tt.order.push_back( v + 1 ); // 1-based
+    root_tt.order.push_back( v ); // 1-based
 
   const uint32_t delay_profile = *pdelay;
   stp66_print_delay_profile( nVars, delay_profile );
@@ -383,7 +426,8 @@ int stpxx_decompose(
   Lut66DsdResult res;
   if ( stp66_find_mx_my( root_tt, delay_profile, res ) && res.found )
   {
-    if ( encode_2lut_decomposition_abc( nVars, res, decomposition ) == 0 )
+    if ( encode_2lut_decomposition_abc_safe( nVars, res, decomposition, 92 ) == 0 )
+
     {
        *pdelay = delay_profile;
       std::printf(

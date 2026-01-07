@@ -84,7 +84,13 @@ run_66lut_dsd_by_mx_subset(
     int n = order.size();
     if ((size_t(1)<<n) != mf.size()) return out;
 
-    auto is_late = [&](int v){ return (delay_profile>>v)&1; };
+auto is_late = [&](int v) -> bool {
+    if (v < 0 || v >= 32) return false;
+    return ((delay_profile >> v) & 1u) != 0;
+
+
+};
+
 
     struct VarPos{int var;int pos;};
     std::vector<VarPos> vp;

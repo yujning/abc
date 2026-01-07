@@ -31,15 +31,15 @@ inline uint64_t bidec_pow2(int k) { return 1ull << k; }
 struct StrongBiDecResult
 {
     bool found = false;
-    std::vector<int> A;
-    std::vector<int> B;
-    std::vector<int> C;
+    std::vector<int> A;   // 0-based
+    std::vector<int> B;   // 0-based
+    std::vector<int> C;   // 0-based
     std::string MY;
     std::string MX;
 };
 
 // =====================================================
-// reorder tt by variable order (MSB->LSB)
+// reorder tt by variable order (0-based, MSB→LSB)
 // =====================================================
 inline std::string reorder_tt_by_var_order(
     const std::string& tt,
@@ -58,8 +58,8 @@ inline std::string reorder_tt_by_var_order(
         uint64_t old_idx = 0;
         for (int i = 0; i < n; ++i)
         {
-            int bit = (idx >> (n-1-i)) & 1;
-            old_idx |= uint64_t(bit) << (n-1-pos[new_order[i]]);
+            int bit = (idx >> (n - 1 - i)) & 1;
+            old_idx |= uint64_t(bit) << (n - 1 - pos[new_order[i]]);
         }
         out[idx] = tt[old_idx];
     }
@@ -91,15 +91,15 @@ inline std::string compute_MXYX_from_MF(
         for (uint64_t b = 0; b < MN; ++b)
             for (uint64_t c = 0; c < LN; ++c)
             {
-                uint64_t idx = (a*MN*MN + b*MN + b)*LN + c;
-                MXY[idx] = MF[mf_index(a,b,c,y,z)];
+                uint64_t idx = (a * MN * MN + b * MN + b) * LN + c;
+                MXY[idx] = MF[mf_index(a, b, c, y, z)];
             }
 
     return MXY;
 }
 
 // =====================================================
-// Step 2: solve MX / MY from MXY
+// Step 2: solve MX / MY
 // =====================================================
 inline bool solve_MX_MY_from_MXY(
     const std::string& MXY,
@@ -122,13 +122,16 @@ inline bool solve_MX_MY_from_MXY(
         {
             bool ok = true;
             for (uint64_t j = 0; j < blk_sz; ++j)
-                if (blk[j] != 'x' && classes[k][j] != 'x' && blk[j] != classes[k][j])
+                if (blk[j] != 'x' &&
+                    classes[k][j] != 'x' &&
+                    blk[j] != classes[k][j])
                 { ok = false; break; }
 
             if (ok)
             {
                 for (uint64_t j = 0; j < blk_sz; ++j)
-                    if (classes[k][j] == 'x') classes[k][j] = blk[j];
+                    if (classes[k][j] == 'x')
+                        classes[k][j] = blk[j];
                 MY[i] = (k == 0 ? '1' : '0');
                 hit = true;
                 break;
@@ -166,7 +169,7 @@ inline std::vector<std::tuple<int,int,int>> enumerate_xyz(int n)
             if (z < 0) continue;
             if (x + y > 6) continue;
             if (y + z + 1 > 6) continue;
-            out.emplace_back(x,y,z);
+            out.emplace_back(x, y, z);
         }
     return out;
 }
@@ -178,27 +181,28 @@ inline std::vector<
     std::tuple<std::vector<int>, std::vector<int>, std::vector<int>>>
 enumerate_variable_partitions(
     const std::vector<int>& vars,
-    int x,int y,int z)
+    int x, int y, int z)
 {
     std::vector<
         std::tuple<std::vector<int>, std::vector<int>, std::vector<int>>> out;
 
     int n = vars.size();
-    std::vector<bool> sel_b(n,false);
-    std::fill(sel_b.begin(), sel_b.begin()+y, true);
+    std::vector<bool> sel_b(n, false);
+    std::fill(sel_b.begin(), sel_b.begin() + y, true);
 
     do {
         std::vector<int> B, rest;
-        for (int i=0;i<n;i++) (sel_b[i]?B:rest).push_back(vars[i]);
+        for (int i = 0; i < n; ++i)
+            (sel_b[i] ? B : rest).push_back(vars[i]);
 
-        std::vector<bool> sel_a(rest.size(),false);
-        std::fill(sel_a.begin(), sel_a.begin()+x, true);
+        std::vector<bool> sel_a(rest.size(), false);
+        std::fill(sel_a.begin(), sel_a.begin() + x, true);
 
         do {
-            std::vector<int> A,C;
-            for (size_t i=0;i<rest.size();i++)
-                (sel_a[i]?A:C).push_back(rest[i]);
-            out.emplace_back(A,B,C);
+            std::vector<int> A, C;
+            for (size_t i = 0; i < rest.size(); ++i)
+                (sel_a[i] ? A : C).push_back(rest[i]);
+            out.emplace_back(A, B, C);
         } while (std::prev_permutation(sel_a.begin(), sel_a.end()));
 
     } while (std::prev_permutation(sel_b.begin(), sel_b.end()));
@@ -207,25 +211,30 @@ enumerate_variable_partitions(
 }
 
 // =====================================================
-// main entry (delay-aware)
+// main entry (delay-aware, ★ 0-based ★)
 // =====================================================
 inline StrongBiDecResult
-run_strong_bi_dec(const std::string& tt,
-                  const std::vector<int>& order,
-                  uint32_t delay_profile = 0)
+run_strong_bi_dec(
+    const std::string& tt,
+    const std::vector<int>& order,   // ★ 已经是 0-based
+    uint32_t delay_profile = 0)
 {
     StrongBiDecResult res;
-    int n = order.size();
-    if ((size_t(1)<<n) != tt.size()) return res;
+    res.found = false;
+
+    const int n = order.size();
+    if (n == 0) return res;
+    if ((size_t(1) << n) != tt.size()) return res;
 
     auto is_late = [&](int v){ return (delay_profile >> v) & 1; };
 
     int total_late = 0;
-    for (int v : order) if (is_late(v)) total_late++;
+    for (int v : order)
+        if (is_late(v)) total_late++;
 
-    for (auto [x,y,z] : enumerate_xyz(n))
+    for (auto [x, y, z] : enumerate_xyz(n))
     {
-        auto parts = enumerate_variable_partitions(order,x,y,z);
+        auto parts = enumerate_variable_partitions(order, x, y, z);
         for (auto const& tpl : parts)
         {
             const auto& A = std::get<0>(tpl);
@@ -238,23 +247,32 @@ run_strong_bi_dec(const std::string& tt,
             if (bad) continue;
 
             int lateC = 0;
-            for (int v : C) if (is_late(v)) lateC++;
+            for (int v : C)
+                if (is_late(v)) lateC++;
             if (lateC < std::min((int)C.size(), total_late)) continue;
 
             std::vector<int> new_order;
+            new_order.reserve(n);
             new_order.insert(new_order.end(), A.begin(), A.end());
             new_order.insert(new_order.end(), B.begin(), B.end());
             new_order.insert(new_order.end(), C.begin(), C.end());
 
-            std::string MFp = reorder_tt_by_var_order(tt,n,new_order,order);
-            std::string MXY = compute_MXYX_from_MF(MFp,x,y,z);
+            std::string MFp =
+                reorder_tt_by_var_order(tt, n, new_order, order);
+
+            std::string MXY =
+                compute_MXYX_from_MF(MFp, x, y, z);
 
             std::string MX, MY;
-            if (!solve_MX_MY_from_MXY(MXY,x,y,z,MX,MY)) continue;
+            if (!solve_MX_MY_from_MXY(MXY, x, y, z, MX, MY))
+                continue;
 
             res.found = true;
-            res.A=A; res.B=B; res.C=C;
-            res.MX=MX; res.MY=MY;
+            res.A = A;
+            res.B = B;
+            res.C = C;
+            res.MX = MX;
+            res.MY = MY;
             return res;
         }
     }
