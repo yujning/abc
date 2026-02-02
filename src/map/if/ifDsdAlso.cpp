@@ -10,11 +10,15 @@ int If_CutDsdBalanceEvalAlso_Impl( If_Man_t * p, If_Cut_t * pCut, Vec_Int_t * vA
 int If_CutDsdBalanceEvalAlso( If_Man_t * p, If_Cut_t * pCut, Vec_Int_t * vAig )
 {
 #ifndef ABC_USE_ALSO
-    (void)p;
-    (void)pCut;
-    (void)vAig;
+    static int once = 0;
+    if ( !once++ )
+        printf("ABC_USE_ALSO is NOT enabled\n");
     return -1;
 #else
+    static int once = 0;
+    if ( !once++ )
+        printf("ABC_USE_ALSO is enabled\n");
     return If_CutDsdBalanceEvalAlso_Impl( p, pCut, vAig );
 #endif
 }
+
