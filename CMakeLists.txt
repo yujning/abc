@@ -101,18 +101,22 @@ function(abc_properties target visibility)
     target_compile_options_filtered(${target} ${visibility} ${ABC_CFLAGS} ${ABC_CXXFLAGS} -Wno-unused-but-set-variable )
     target_link_libraries(${target} ${visibility} ${ABC_LIBS})
 
-    if(ABC_USE_ALSO)
-target_include_directories(${target} ${visibility}
-  ${ABC_ALSO_ROOT}/lib/nbulsi-mockturtle/lib
-  ${ABC_ALSO_ROOT}/lib/nbulsi-mockturtle/lib/kitty
-  ${ABC_ALSO_ROOT}/lib/nbulsi-mockturtle/include
-  ${ABC_ALSO_ROOT}/src
-)
 
-    target_sources(libabc PRIVATE
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/map/if/ifDsdAlso_impl.cpp
+    if(ABC_USE_ALSO)
+    target_include_directories(${target} ${visibility}
+      ${ABC_ALSO_ROOT}
+      ${ABC_ALSO_ROOT}/src
+    
+      # STP
+      ${ABC_ALSO_ROOT}/lib/stp/src/include
+    
+      # mockturtle
+      ${ABC_ALSO_ROOT}/lib/nbulsi-mockturtle/include
+      ${ABC_ALSO_ROOT}/lib/nbulsi-mockturtle/lib   # ⭐ 关键！percy / fmt / lorina 都在这
+    
     )
-  endif()
+    endif()
+    
   
 endfunction()
 

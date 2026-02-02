@@ -74,10 +74,11 @@ ARCHFLAGS := $(ARCHFLAGS)
 OPTFLAGS  ?= -g -O
 
 ifdef ABC_USE_ALSO
-  CFLAGS += -I$(ABCSRC)/also/lib/nbulsi-mockturtle/lib \
-            -I$(ABCSRC)/also/lib/nbulsi-mockturtle/lib/kitty \
+  CFLAGS += -I$(ABCSRC)/also \
+            -I$(ABCSRC)/also/src \
+            -I$(ABCSRC)/also/lib/stp/src/include \
             -I$(ABCSRC)/also/lib/nbulsi-mockturtle/include \
-            -I$(ABCSRC)/also/src
+            -I$(ABCSRC)/also/lib/nbulsi-mockturtle/lib
 endif
 
 
