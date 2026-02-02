@@ -73,6 +73,14 @@ ARCHFLAGS := $(ARCHFLAGS)
 
 OPTFLAGS  ?= -g -O
 
+ifdef ABC_USE_ALSO
+  CFLAGS += -I$(ABCSRC)/also/lib/nbulsi-mockturtle/lib \
+            -I$(ABCSRC)/also/lib/nbulsi-mockturtle/lib/kitty \
+            -I$(ABCSRC)/also/lib/nbulsi-mockturtle/include \
+            -I$(ABCSRC)/also/src
+endif
+
+
 CFLAGS    += -Wall -Wno-unused-function -Wno-write-strings -Wno-sign-compare $(ARCHFLAGS)
 ifneq ($(findstring arm,$(shell uname -m)),)
 	CFLAGS += -DABC_MEMALIGN=4

@@ -38,7 +38,8 @@ endfunction()
 
 project(abc)
 
-option(ABC_USE_ALSO "Enable ALSO-based STP DSD resynthesis support" OFF)
+option(ABC_USE_ALSO "Enable ALSO-based STP DSD resynthesis support" ON)
+set(ABC_ALSO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/also" CACHE PATH "Path to ALSO source tree")
 
 if(READLINE_FOUND MATCHES TRUE)
     addprefix(ABC_READLINE_INCLUDES_FLAGS "-I" ${READLINE_INCLUDE})
@@ -101,6 +102,13 @@ function(abc_properties target visibility)
     target_link_libraries(${target} ${visibility} ${ABC_LIBS})
 
     if(ABC_USE_ALSO)
+target_include_directories(${target} ${visibility}
+  ${ABC_ALSO_ROOT}/lib/nbulsi-mockturtle/lib
+  ${ABC_ALSO_ROOT}/lib/nbulsi-mockturtle/lib/kitty
+  ${ABC_ALSO_ROOT}/lib/nbulsi-mockturtle/include
+  ${ABC_ALSO_ROOT}/src
+)
+
     target_sources(libabc PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/src/map/if/ifDsdAlso_impl.cpp
     )
