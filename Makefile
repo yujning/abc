@@ -55,6 +55,13 @@ $(ARCHFLAGS_EXE) : arch_flags.c
 
 INCLUDES += -I$(ABCSRC)/src
 
+
+ifdef ABC_USE_ALSO
+SRC += src/map/if/ifDsdAlso_impl.cpp
+endif
+
+
+
 # Use C99 stdint.h header for platform-dependent types
 ifdef ABC_USE_STDINT_H
     ARCHFLAGS ?= -DABC_USE_STDINT_H=1

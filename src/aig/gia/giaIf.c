@@ -1000,7 +1000,10 @@ int Gia_ManBuildFromMiniInt( Gia_Man_t * pNew, Vec_Int_t * vLeaves, Vec_Int_t * 
 int Gia_ManBuildFromMini( Gia_Man_t * pNew, If_Man_t * pIfMan, If_Cut_t * pCut, Vec_Int_t * vLeaves, Vec_Int_t * vAig, int fHash, int fUseDsd )
 {
     if ( fUseDsd )
-        If_CutDsdBalanceEval( pIfMan, pCut, vAig );
+    {
+        If_CutDsdBalanceEvalAlso( pIfMan, pCut, vAig );
+        printf("Using DSD evaluation\n");
+    }
     else
         If_CutSopBalanceEval( pIfMan, pCut, vAig );
     return Gia_ManBuildFromMiniInt( pNew, vLeaves, vAig, fHash );

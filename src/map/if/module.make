@@ -12,6 +12,7 @@ SRC +=  src/map/if/ifCom.c \
     src/map/if/ifDecJ.c \
     src/map/if/ifDelay.c \
     src/map/if/ifDsd.c \
+    src/map/if/ifDsdAlso.cpp \
     src/map/if/ifLibBox.c \
     src/map/if/ifLibLut.c \
     src/map/if/ifMan.c \

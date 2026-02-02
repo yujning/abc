@@ -2351,6 +2351,11 @@ int If_CutDsdBalanceEval( If_Man_t * p, If_Cut_t * pCut, Vec_Int_t * vAig )
         char * pPermLits = If_CutDsdPerm(p, pCut);
         for ( i = 0; i < If_CutLeaveNum(pCut); i++ )
             pTimes[i] = (int)If_ObjCutBest(If_CutLeaf(p, pCut, i))->Delay; 
+#ifdef ABC_USE_ALSO
+        Delay = If_CutDsdBalanceEvalAlso( p, pCut, vAig );
+        if ( Delay >= 0 )
+            return Delay;
+#endif
         Delay = If_CutDsdBalanceEvalInt( p->pIfDsdMan, Abc_LitNotCond(If_CutDsdLit(p, pCut), pCut->fCompl), pTimes, vAig, &Area, If_CutDsdPerm(p, pCut) );
         pCut->Cost = Area;
         // try cofactoring 

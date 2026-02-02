@@ -38,6 +38,8 @@ endfunction()
 
 project(abc)
 
+option(ABC_USE_ALSO "Enable ALSO-based STP DSD resynthesis support" OFF)
+
 if(READLINE_FOUND MATCHES TRUE)
     addprefix(ABC_READLINE_INCLUDES_FLAGS "-I" ${READLINE_INCLUDE})
     string(REPLACE ";" " " ABC_READLINE_INCLUDES_FLAGS "${ABC_READLINE_INCLUDES_FLAGS}")
@@ -97,7 +99,15 @@ function(abc_properties target visibility)
     target_include_directories(${target} ${visibility} ${CMAKE_CURRENT_SOURCE_DIR}/src )
     target_compile_options_filtered(${target} ${visibility} ${ABC_CFLAGS} ${ABC_CXXFLAGS} -Wno-unused-but-set-variable )
     target_link_libraries(${target} ${visibility} ${ABC_LIBS})
+
+    if(ABC_USE_ALSO)
+    target_sources(libabc PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/map/if/ifDsdAlso_impl.cpp
+    )
+  endif()
+  
 endfunction()
+
 
 set(ABC_MAIN_SRC src/base/main/main.c)
 list(REMOVE_ITEM ABC_SRC ${ABC_MAIN_SRC})
